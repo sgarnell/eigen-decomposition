@@ -1,0 +1,10 @@
+// Phase 01 fixture -- validation rule: a hub must have exactly one pre and one
+// post edge.  Hub "A--B" has its pre edge but no post edge.
+digraph G {
+	A -> "A--B" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" [label="" color=cyan shape=circle style=filled]
+	A [label="A
+cent= 0.1" color=brown2 shape=circle]
+	B [label="B
+cent= 0.1" color=brown2 shape=circle]
+}

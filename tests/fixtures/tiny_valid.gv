@@ -1,0 +1,17 @@
+// Phase 01 fixture -- the happy path.
+// 3 real neurons, 2 hubs, 4 raw edges, 2 collapsed pairs.
+// The real-neuron labels contain a LITERAL newline inside the quoted string,
+// exactly like the reference dataset: line-based parsing of this file is unsafe.
+digraph G {
+	graph [rankdir=LR size="10,10"]
+	N1 -> "N1--N2" [label="Zscore = 0.8" arrowsize=0.4 color=blue penwidth=1.6 weight=3]
+	"N1--N2" -> N2 [label="Zscore = 0.6" arrowsize=0.4 color=gold penwidth=1.2 weight=3]
+	N2 -> "N2--N3" [label="Zscore = 0.4" arrowsize=0.4 color=red penwidth=0.8 weight=3]
+	"N2--N3" -> N3 [label="Zscore = 0.2" arrowsize=0.4 color=red penwidth=0.4 weight=3]
+	N1 [label="N1
+cent= 0.1" color=brown2 shape=circle style=filled]
+	N2 [label="N2
+cent= 0.2" color=brown2 shape=circle style=filled]
+	N3 [label="N3
+cent= 0.1" color=brown2 shape=circle style=filled]
+}

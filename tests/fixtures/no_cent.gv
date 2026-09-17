@@ -1,0 +1,8 @@
+// Phase 01 fixture -- metadata lenience: real neurons without `cent` metadata
+// produce warnings, not errors, and `cent` becomes null.
+digraph G {
+	A -> "A--B" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" -> B [label="Zscore = 0.5" color=blue penwidth=1.0]
+	A [color=brown2 shape=circle style=filled]
+	B [color=brown2 shape=circle style=filled]
+}

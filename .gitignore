@@ -1,0 +1,68 @@
+# ============================
+#  Python / Scientific Projects
+# ============================
+
+# Bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.env/
+venv/
+ENV/
+env/
+.venv/
+
+# Conda environment metadata
+conda-meta/
+*.conda
+*.lock
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# ============================
+#  Build / Packaging
+# ============================
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# ============================
+#  Logs / Dumps
+# ============================
+*.log
+*.out
+*.err
+
+# ============================
+#  Data (optional)
+# ============================
+# Uncomment if you want to ignore large raw data
+# data/raw_dot/
+# data/processed/
+
+# ============================
+#  PyCharm / JetBrains
+# ============================
+.idea/
+*.iml
+
+# ============================
+#  OS-specific
+# ============================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~

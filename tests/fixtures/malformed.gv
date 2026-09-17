@@ -1,0 +1,6 @@
+// Phase 01 fixture -- malformed DOT: pydot cannot build a graph from this file
+// (it reports a parse error and returns None), which must surface as a
+// `parse_failure` validation error rather than a crash.
+digraph G {
+	A -> [label=]
+}

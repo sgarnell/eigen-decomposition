@@ -1,0 +1,12 @@
+// Phase 01 fixture -- validation rule: hub names must never appear in the neuron
+// list.  The hub node "A--B" wrongly carries real-neuron `cent` metadata.
+digraph G {
+	A -> "A--B" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" -> B [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" [label="A--B
+cent= 0.1" color=brown2 shape=circle]
+	A [label="A
+cent= 0.1" color=brown2 shape=circle]
+	B [label="B
+cent= 0.1" color=brown2 shape=circle]
+}

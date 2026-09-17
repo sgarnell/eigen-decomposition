@@ -1,0 +1,40 @@
+# Conda environment for the eigen-decomposition pipeline.
+#
+# Create / update with:
+#   conda env create -f environment.yml
+#   conda env update -f environment.yml --prune
+#
+# Everything below is conda-forge only (see README).  Packages that are only
+# needed by later phases and are not available on conda-forge (hdbscan,
+# umap-learn, pyDSTool) are intentionally not listed yet; they will be added
+# together with the phase that needs them.
+name: eigen-decomposition
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+
+  # Numerical core
+  - numpy>=2.0
+  - scipy>=1.11
+  - numba>=0.59
+  - sympy>=1.12
+  - jax>=0.4
+
+  # Data handling and graphs
+  - pandas>=2.0
+  - networkx>=3.0
+  - pydot>=4.0          # Phase 01 parser (metadata.parser_version is recorded)
+  - graphviz>=9.0       # DOT toolchain (rendering only; parsing uses pydot)
+
+  # Machine learning / clustering (Phases 03-04)
+  - scikit-learn>=1.3
+
+  # Visualisation
+  - matplotlib>=3.8
+  - seaborn>=0.13
+  - mplcursors>=0.7      # Phase 02 --interactive hover tooltips (not needed elsewhere)
+
+  # Dev / test tooling (Phase 01)
+  - pytest>=9.1
+

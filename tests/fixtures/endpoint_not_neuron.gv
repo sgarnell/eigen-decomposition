@@ -1,0 +1,12 @@
+// Phase 01 fixture -- validation rule: both pair endpoints must be neurons.
+// Hub "A--B" posts into the hub node "C--D", so the collapsed pair has a hub
+// (and a non-neuron) target.
+digraph G {
+	A -> "A--B" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" -> "C--D" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"C--D" -> D [label="Zscore = 0.5" color=blue penwidth=1.0]
+	A [label="A
+cent= 0.1" color=brown2 shape=circle]
+	D [label="D
+cent= 0.1" color=brown2 shape=circle]
+}

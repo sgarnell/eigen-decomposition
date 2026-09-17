@@ -1,0 +1,14 @@
+// Phase 01 fixture -- validation rule: no duplicate (source, target) pair.
+// The pair (A, B) is encoded twice by two distinct hub nodes: the second hub
+// name carries a trailing space inside the quotes, so Graphviz keeps it as a
+// separate node while it normalizes to the same pair.
+digraph G {
+	A -> "A--B" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" -> B [label="Zscore = 0.5" color=blue penwidth=1.0]
+	A -> "A--B " [label="Zscore = 0.4" color=red penwidth=0.8]
+	"A--B " -> B [label="Zscore = 0.4" color=red penwidth=0.8]
+	A [label="A
+cent= 0.1" color=brown2 shape=circle]
+	B [label="B
+cent= 0.1" color=brown2 shape=circle]
+}

@@ -1,0 +1,6 @@
+// Phase 01 fixture -- real neurons that are only mentioned by edges (no node
+// statement at all): they must still be collected, with a cent_missing warning.
+digraph G {
+	A -> "A--B" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" -> B [label="Zscore = 0.5" color=blue penwidth=1.0]
+}

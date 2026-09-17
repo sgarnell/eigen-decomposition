@@ -1,0 +1,18 @@
+// Phase 01 fixture -- warning case: two graphs in one file.  They are merged for
+// the artifact (and escalated to an error under --strict).
+digraph G {
+	A -> "A--B" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--B" -> B [label="Zscore = 0.5" color=blue penwidth=1.0]
+	A [label="A
+cent= 0.1" color=brown2 shape=circle]
+	B [label="B
+cent= 0.1" color=brown2 shape=circle]
+}
+digraph H {
+	C -> "C--D" [label="Zscore = 0.3" color=red penwidth=0.6]
+	"C--D" -> D [label="Zscore = 0.7" color=blue penwidth=1.4]
+	C [label="C
+cent= 0.2" color=brown2 shape=circle]
+	D [label="D
+cent= 0.1" color=brown2 shape=circle]
+}

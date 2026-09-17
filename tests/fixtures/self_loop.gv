@@ -1,0 +1,8 @@
+// Phase 01 fixture -- validation rule: no self-loops.  Hub "A--A" collapses to
+// the pair (A, A).
+digraph G {
+	A -> "A--A" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"A--A" -> A [label="Zscore = 0.5" color=blue penwidth=1.0]
+	A [label="A
+cent= 0.1" color=brown2 shape=circle]
+}
