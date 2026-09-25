@@ -105,166 +105,85 @@ Extract latent functional modes from the Z-matrix using spectral methods.
 - `03_eigen_decomposition.md` execution plan
 
 ---
-
-## Phase 04 — Mode Loadings & Functional Clustering
+# Phase 04 — Functional Motifs, Neuron Grouping & Pathway Diagrams
 
 ### Objective
-Cluster neurons into functional groups based on their mode loading vectors.
+Extract functional motifs from spectral mode structure, group neurons by shared participation patterns, and synthesize quantitative pathway diagrams that reveal the core computational architecture of the network.
 
 ### Inputs
-- Mode vectors from Phase 03
-- Neuron index map
+- Mode loadings matrix (N × k)
+- Mode outer‑product heatmaps (k × N × N)
+- Eigen statistics JSON (`eigen.json`, `eigen.<variant>.json`, `eigen.<config>.json`)
+- Eigenvalue / singular value spectrum
+- Explained variance ratios (EVR)
+- Recommended k and heuristic metadata
+- Anatomical metadata (neuron labels, regions)
 
 ### Outputs
-- Loading matrix `L` of shape `(N × k)`
-- Cluster assignments for each neuron
-- Cluster centroids
-- Visualizations:
-- UMAP / PCA embeddings
-- Cluster heatmaps
-- Mode contribution plots
+- Mode‑specific motifs (subcircuits with polarity and strength)
+- Cross‑mode motif tracking (recurrence, polarity flips, strength changes)
+- Functional neuron groups (motif‑based + loading‑space clustering)
+- Quantitative pathway diagrams (nodes = groups, edges = contributions)
+- Motif JSON artifacts (structure, polarity, strength, recurrence)
 
-### Requirements
-- Support for multiple clustering algorithms:
-- k-means
-- spectral clustering
-- HDBSCAN
-- Optional nonlinear embeddings (UMAP)
-- Export cluster metadata for dynamical modeling
-
-### Deliverables
-- `mode_clustering.py` module
-- `04_mode_loadings.md` execution plan
+### Tasks
+- Identify strongest motifs per mode using loadings, heatmaps, and EVR
+- Track motifs across modes to find stable, polarity‑sensitive, or composite motifs
+- Group neurons by motif membership and loading‑vector similarity
+- Build pathway diagrams with nodes (functional groups), edges (signed/weighted contributions), and annotations (mode index, eigenvalue, EVR, anatomical region)
+- Produce diagram‑ready graph structures for Phase 05
 
 ---
 
-## Phase 05 — Reduced Dynamical Models
+# Phase 05 — Reduced Dynamical Models on Motif-Based Diagrams
 
 ### Objective
-Construct population-level dynamical models using functional groups
-identified in Phase 04.
+Construct reduced dynamical models using the motif‑based pathway diagrams from Phase 04 as the structural substrate. Each motif becomes a population variable; each diagram edge becomes an effective coupling.
 
 ### Inputs
-- Functional clusters
-- Mode loadings
-- Z-matrix projections
+- Pathway diagrams from Phase 04
+- Functional groups and motif definitions
+- Eigen statistics JSON (mode strengths, polarity, EVR, residuals)
+- Mode recurrence and motif metadata
 
 ### Outputs
-- Reduced system variables:
-x_1, x_2, ..., x_m
+- Reduced ODE models (rate models, Wilson–Cowan, linearized systems)
+- Effective coupling matrices derived from motif structure
+- Population variables linked to neuron groups
+- Model JSON artifacts (equations, parameters, coupling structure)
 
-Code
-- Interaction matrix between population variables
-- Rate/Wilson–Cowan equations
-- Symbolic Jacobians (SymPy)
-- Parameter sets for simulation
-
-### Requirements
-- Define population activity variables
-- Project Z-matrix into reduced space
-- Construct differential equations:
-dx_i/dt = -x_i + f( Σ_j W_ij x_j + I_i )
-
-Code
-- Support for nonlinear activation functions
-
-### Deliverables
-- `reduced_models.py` module
-- `05_reduced_dynamical_models.md` execution plan
+### Tasks
+- Define population activity variables for each motif/group
+- Derive effective couplings from motif polarity and strength
+- Construct reduced dynamical equations (rate models, WC equations, low‑dimensional ODEs)
+- Prepare models for stability and attractor analysis in Phase 06
+- Validate models against motif structure and spectral signatures
 
 ---
 
-## Phase 06 — Dynamical Structure Analysis
+# Phase 06 — Dynamical Structure Analysis of Reduced Models
 
 ### Objective
-Analyze the dynamical behavior of reduced subsystems to identify motifs,
-attractors, and stability properties.
+Analyze the dynamical behavior of the reduced models from Phase 05 to classify motifs by their dynamical roles: attractors, oscillators, switches, gain‑control loops, etc.
 
 ### Inputs
 - Reduced dynamical models from Phase 05
+- Effective coupling matrices
+- Population variables and motif diagrams
+- Eigen statistics JSON (for linking dynamical behavior back to spectral structure)
 
 ### Outputs
-- Fixed points
-- Jacobians
-- Stability classification
-- Attractor types:
-- point attractor
-- limit cycle
-- multi-stable
-- saddle-node
+- Fixed points and equilibrium states
+- Jacobians and linear stability analysis
+- Stability classification (stable, unstable, saddle, bistable)
+- Attractor types (point, limit cycle, multi‑stable, saddle‑node)
 - Bifurcation diagrams
-- Motif classification:
-- single motif
-- composite motif
-- hierarchical motif
+- Dynamical motif taxonomy (single, composite, hierarchical)
+- Mapping from dynamical behavior → anatomical motif
 
-### Requirements
-- Symbolic and numeric Jacobian computation
-- Stability via eigenvalues of Jacobian
-- Phase portrait visualization
-- Optional bifurcation analysis (pyDSTool)
-
-### Deliverables
-- `dynamics_analysis.py` module
-- `06_analyze_dynamical_structures.md` execution plan
-
----
-
-## Phase Dependencies
-
-Phase 01 → Phase 02 → Phase 03 → Phase 04 → Phase 05 → Phase 06
-
-Code
-
-Each phase produces artifacts consumed by the next.
-
----
-
-## Repository Integration
-
-All phases map directly to modules in:
-
-src/
-parsing/
-matrices/
-spectral/
-clustering/
-dynamics/
-
-Code
-
-Execution plans live in:
-
-execution-plans/
-00_eigen_decomp_overview.md
-01_parse_graphviz.md
-02_build_square_matrix.md
-03_eigen_decomposition.md
-04_mode_loadings.md
-05_reduced_dynamical_models.md
-06_analyze_dynamical_structures.md
-
-Code
-
----
-
-## Next Steps
-
-You can now generate each sub-plan using this master blueprint.
-
-01_parse_graphviz.md
-02_build_square_matrix.md
-03_eigen_decomposition.md
-04_mode_loadings.md
-05_reduced_dynamical_models.md
-06_analyze_dynamical_structures.md
-
-Code
-
-Each sub-plan should expand its phase into:
-- goals  
-- inputs/outputs  
-- algorithms  
-- data structures  
-- module layout  
-- testing strategy  
+### Tasks
+- Compute fixed points and evaluate Jacobians
+- Classify stability and attractor structure
+- Identify bifurcations under parameter variation
+- Relate dynamical behavior back to motif diagrams and spectral signatures
+- Produce dynamical‑motif JSON artifacts for Phase 07 (if needed)

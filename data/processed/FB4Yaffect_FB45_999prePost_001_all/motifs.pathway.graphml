@@ -1,0 +1,703 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d24" for="edge" attr.name="intra_flag" attr.type="boolean" />
+  <key id="d23" for="edge" attr.name="topN_flag" attr.type="boolean" />
+  <key id="d22" for="edge" attr.name="threshold_flag" attr.type="boolean" />
+  <key id="d21" for="edge" attr.name="contribution_by_mode" attr.type="string" />
+  <key id="d20" for="edge" attr.name="polarity" attr.type="long" />
+  <key id="d19" for="edge" attr.name="abs_weight" attr.type="double" />
+  <key id="d18" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d17" for="edge" attr.name="target_group" attr.type="string" />
+  <key id="d16" for="edge" attr.name="source_group" attr.type="string" />
+  <key id="d15" for="node" attr.name="coherence" attr.type="double" />
+  <key id="d14" for="node" attr.name="dominant_mode" attr.type="long" />
+  <key id="d13" for="node" attr.name="centroid" attr.type="string" />
+  <key id="d12" for="node" attr.name="is_singleton" attr.type="boolean" />
+  <key id="d11" for="node" attr.name="is_background" attr.type="boolean" />
+  <key id="d10" for="node" attr.name="region_composition" attr.type="string" />
+  <key id="d9" for="node" attr.name="size" attr.type="long" />
+  <key id="d8" for="node" attr.name="label" attr.type="string" />
+  <key id="d7" for="node" attr.name="group_id" attr.type="string" />
+  <key id="d6" for="graph" attr.name="topN" attr.type="long" />
+  <key id="d5" for="graph" attr.name="threshold" attr.type="double" />
+  <key id="d4" for="graph" attr.name="pathway_weight_rule" attr.type="string" />
+  <key id="d3" for="graph" attr.name="pathway_source" attr.type="string" />
+  <key id="d2" for="graph" attr.name="weight_normalization" attr.type="string" />
+  <key id="d1" for="graph" attr.name="n_edges" attr.type="long" />
+  <key id="d0" for="graph" attr.name="n_nodes" attr.type="long" />
+  <graph edgedefault="directed">
+    <node id="G00">
+      <data key="d7">G00</data>
+      <data key="d8">G00</data>
+      <data key="d9">1</data>
+      <data key="d10">{"DNa03": 1}</data>
+      <data key="d11">True</data>
+      <data key="d12">True</data>
+      <data key="d13">[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]</data>
+    </node>
+    <node id="G01">
+      <data key="d7">G01</data>
+      <data key="d8">G01</data>
+      <data key="d9">6</data>
+      <data key="d10">{"FB4K": 1, "hDeltaA": 5}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">1</data>
+      <data key="d13">[0.21534036071982962, 0.036841855842125855, 0.0221994311998317, 0.04505996182689621, 0.017109617805018663, 0.04578566989627337, 0.0495075272038396, 0.09326720627644604, 0.07939187454894649, 0.1022880451848616, 0.09406734780003519, 0.06954795956765081, 0.06502921454253019, 0.11327781191789822, 0.04347388525773582, 0.028491979111270164, 0.0628949511705997, 0.0945566036570999, 0.09333269227007528, 0.08714085874137807, 0.11381040537975236]</data>
+      <data key="d15">0.05365168800534525</data>
+    </node>
+    <node id="G02">
+      <data key="d7">G02</data>
+      <data key="d8">G02</data>
+      <data key="d9">10</data>
+      <data key="d10">{"FB4E": 2, "hDeltaI": 8}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">2</data>
+      <data key="d13">[0.015395852956073782, 0.1930455101467729, 0.005644392883936292, 0.037805016656464595, 0.006113918876433837, 0.02407685525176374, 0.018330269888973107, 0.048716573182732814, 0.0706517391515965, 0.049941182205490584, 0.05150407466281117, 0.09828265503747555, 0.06151103191432209, 0.03723122666891296, 0.053025122452666794, 0.05985463883707861, 0.1074906041844175, 0.07113277762415111, 0.06914074711412198, 0.06261830113255154, 0.028955624472368057]</data>
+      <data key="d15">0.18749777307918558</data>
+    </node>
+    <node id="G03">
+      <data key="d7">G03</data>
+      <data key="d8">G03</data>
+      <data key="d9">7</data>
+      <data key="d10">{"FB5O": 1, "FB5R": 1, "FB5S": 1, "FB5U": 1, "hDeltaH": 3}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">3</data>
+      <data key="d13">[0.013645699167546, 0.009486440330389213, 0.2596120651439141, 0.04602949925115314, 0.13709630234819578, 0.04716276899095674, 0.022343138798605684, 0.02434774945006246, 0.01186642218625192, 0.010646600751621793, 0.04072724559350537, 0.030872967014545893, 0.05526059418008448, 0.03900836151977856, 0.07485697693720803, 0.052665880114095995, 0.06938147594495744, 0.044895069500935234, 0.06413432796460407, 0.04222570295207073, 0.07512175870186935]</data>
+      <data key="d15">0.024587128988434143</data>
+    </node>
+    <node id="G04">
+      <data key="d7">G04</data>
+      <data key="d8">G04</data>
+      <data key="d9">7</data>
+      <data key="d10">{"FB4Z": 3, "FB5V": 3, "hDeltaA": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">4</data>
+      <data key="d13">[0.12692347945333324, 0.04327756036169918, 0.03176268037882192, 0.2355828446545924, 0.05667231939999541, 0.02571937148416013, 0.11578821877078678, 0.06455709626418589, 0.034268025658299076, 0.12677572823237243, 0.14193567625576484, 0.0509715052005872, 0.09583703451957559, 0.053400986294968485, 0.04315560537202862, 0.019595489188506548, 0.08180101417380145, 0.06465442817883674, 0.06639488928205639, 0.0885344291111749, 0.1061137709320512]</data>
+      <data key="d15">-0.021773659990729426</data>
+    </node>
+    <node id="G05">
+      <data key="d7">G05</data>
+      <data key="d8">G05</data>
+      <data key="d9">7</data>
+      <data key="d10">{"FB5R": 1, "FB5U": 1, "hDeltaH": 5}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">5</data>
+      <data key="d13">[0.013220855339143371, 0.009595312982372248, 0.22093651203282771, 0.067507940878514, 0.28738137941846514, 0.0483538454456482, 0.023001927218542856, 0.015056381287428295, 0.014048900150974309, 0.01726280377433224, 0.0479962844365986, 0.033617789958153815, 0.05788771946354411, 0.03232445573719927, 0.0653105832054995, 0.05593803550372609, 0.08409666747763388, 0.05925706692120776, 0.09591885312329598, 0.06599301590071842, 0.09850982280469488]</data>
+      <data key="d15">0.4038786866502416</data>
+    </node>
+    <node id="G06">
+      <data key="d7">G06</data>
+      <data key="d8">G06</data>
+      <data key="d9">10</data>
+      <data key="d10">{"FB5W": 3, "hDeltaM": 7}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">6</data>
+      <data key="d13">[0.0226443775274063, 0.013069099584157199, 0.045779579763995874, 0.009700860828542145, 0.007635611732597062, 0.25586393976960786, 0.03308040057824346, 0.04775116249333178, 0.04017055545091146, 0.014832303929728808, 0.027445935805704973, 0.016065797662648602, 0.037969957228874474, 0.03927816332344758, 0.02471047132554823, 0.05433150606736038, 0.016478339162305167, 0.02268150686136964, 0.0564240993840324, 0.0345839796425896, 0.0651506959135002]</data>
+      <data key="d15">0.051012792502151606</data>
+    </node>
+    <node id="G07">
+      <data key="d7">G07</data>
+      <data key="d8">G07</data>
+      <data key="d9">9</data>
+      <data key="d10">{"ExR7(ring)": 4, "FB4Y(EB/NO1)": 2, "FB5V": 2, "SMP192": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">7</data>
+      <data key="d13">[0.05475296297063856, 0.015517981518597096, 0.013698241549583441, 0.0712399234394484, 0.0321288453371313, 0.03602309086127789, 0.21734515864093076, 0.07334854269994479, 0.03319883313941786, 0.11240268454546738, 0.10674675862254443, 0.046096753367762394, 0.101564698101787, 0.07619651044566443, 0.05125982524603426, 0.04578023921042474, 0.04859293838557119, 0.05203456502113087, 0.07738612769193529, 0.07041138934311073, 0.09828710034334917]</data>
+      <data key="d15">0.08830470678079352</data>
+    </node>
+    <node id="G08">
+      <data key="d7">G08</data>
+      <data key="d8">G08</data>
+      <data key="d9">2</data>
+      <data key="d10">{"FB4P_a": 2}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">8</data>
+      <data key="d13">[0.22335625317531452, 0.039734904119725384, 0.029355320872879745, 0.03775546324663878, 0.008618188367117093, 0.05807844117637603, 0.0763422474072973, 0.3337300455469035, 0.03499745926548452, 0.23018718737116528, 0.04013151625033255, 0.061195772578719235, 0.22678588537611943, 0.13275089255757855, 0.06348615729114729, 0.00939774858993323, 0.023441938394986428, 0.09942668859627059, 0.08245706620542143, 0.077668961684956, 0.04751795624606831]</data>
+      <data key="d15">0.8764502786355809</data>
+    </node>
+    <node id="G09">
+      <data key="d7">G09</data>
+      <data key="d8">G09</data>
+      <data key="d9">7</data>
+      <data key="d10">{"FB4P_b": 3, "FB4Q_a": 1, "FB4Q_b": 1, "hDeltaA": 1, "hDeltaI": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">9</data>
+      <data key="d13">[0.09022708913614427, 0.06191121232808039, 0.007585317883503469, 0.043179833255579135, 0.009626959505500712, 0.07042325903625128, 0.019334581657574228, 0.04601357751081798, 0.26189255051465216, 0.06663273413883368, 0.0570267064586204, 0.06374450308983946, 0.05606500172928175, 0.08074971169810341, 0.05318181364033906, 0.025754040286503698, 0.0360714161388472, 0.058071510326829494, 0.06342645323800482, 0.053008013753641, 0.10052735889162383]</data>
+      <data key="d15">0.09338970716522417</data>
+    </node>
+    <node id="G10">
+      <data key="d7">G10</data>
+      <data key="d8">G10</data>
+      <data key="d9">1</data>
+      <data key="d10">{"LAL013": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">True</data>
+      <data key="d14">10</data>
+      <data key="d13">[0.0015825836844722775, 0.0008979960352752542, 0.0015103609502259724, 0.01762656666926602, 0.010716720946436071, 0.01841533425077696, 0.1209265874119555, 0.05296789240287263, 0.03230292693258436, 0.13020399919492637, 0.12186650868406847, 0.0267206241060046, 0.12968793815695248, 0.07154568132912469, 0.030408238535201217, 0.0774354869270416, 0.0569468724509857, 0.039907158173032295, 0.021598679625422845, 0.10434149856051743, 0.05943460867845459]</data>
+    </node>
+    <node id="G11">
+      <data key="d7">G11</data>
+      <data key="d8">G11</data>
+      <data key="d9">1</data>
+      <data key="d10">{"FB4Z": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">True</data>
+      <data key="d14">11</data>
+      <data key="d13">[0.1574344070001515, 0.04441783203413725, 0.04072876945653351, 0.2328366534472654, 0.07551438056020882, 0.013444540462833608, 0.05930969884227916, 0.20093546288033987, 0.04385367691380983, 0.22959847188606966, 0.32460790901774034, 0.10851518019201896, 0.054110626626348766, 0.07338048763724402, 0.05793690104078476, 0.02476422410750849, 0.06631363686360914, 0.2424663941619917, 0.13622667130372, 0.13967282571040465, 0.02634594151408642]</data>
+    </node>
+    <node id="G12">
+      <data key="d7">G12</data>
+      <data key="d8">G12</data>
+      <data key="d9">5</data>
+      <data key="d10">{"FB4E": 2, "hDeltaI": 3}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">12</data>
+      <data key="d13">[0.016351822039971476, 0.22093547802874075, 0.004791071890153105, 0.05875215435198594, 0.008467463729659936, 0.03228329615076941, 0.025226678709468108, 0.08637574456701322, 0.12373066645551078, 0.0974514078732317, 0.09840468824601936, 0.279577775243363, 0.07842910008167356, 0.04873889310243719, 0.06522836458337262, 0.060862850132388145, 0.08391479042699594, 0.04395565631892011, 0.03338232319125106, 0.04713088508587378, 0.03357385037285848]</data>
+      <data key="d15">0.4682597776206552</data>
+    </node>
+    <node id="G13">
+      <data key="d7">G13</data>
+      <data key="d8">G13</data>
+      <data key="d9">1</data>
+      <data key="d10">{"SMP192(PDL05)": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">True</data>
+      <data key="d14">13</data>
+      <data key="d13">[0.0015551206728264503, 0.0007894533946339035, 0.00012147566423696441, 0.008574808043500961, 0.004411303214354079, 0.005882682364380398, 0.04064065333272531, 0.011905717436591528, 0.00963335591437402, 0.030844960844062783, 0.02452899676703518, 0.011981298810190577, 0.04150099939982026, 0.021875226316321453, 0.00907168538482171, 0.008118854363020275, 0.012605573564596686, 0.008065275609160606, 0.023663804989978315, 0.02441444943803956, 0.016205651428025047]</data>
+    </node>
+    <node id="G14">
+      <data key="d7">G14</data>
+      <data key="d8">G14</data>
+      <data key="d9">4</data>
+      <data key="d10">{"FB4Z": 1, "hDeltaA": 3}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">14</data>
+      <data key="d13">[0.14632893176353698, 0.06230828328919447, 0.022997889231203526, 0.16488358540422085, 0.05458823922916316, 0.05120269018127745, 0.20983698533968634, 0.1413452467391801, 0.05195376854978065, 0.17280076803831182, 0.13472106007689827, 0.13078561334834934, 0.12505266010853652, 0.31878297769200503, 0.0920402182119366, 0.0532618316997059, 0.10000670971264733, 0.13724942686720373, 0.09748977352814447, 0.16921459267238206, 0.08621972928521837]</data>
+      <data key="d15">0.2144746566108168</data>
+    </node>
+    <node id="G15">
+      <data key="d7">G15</data>
+      <data key="d8">G15</data>
+      <data key="d9">5</data>
+      <data key="d10">{"FB5AA": 1, "FB5AB": 1, "FB5S": 2, "hDeltaI": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">15</data>
+      <data key="d13">[0.002198982765916559, 0.027585443261285775, 0.023779589653793932, 0.016589306513589117, 0.0692307413303449, 0.018004735348789994, 0.030657082613055525, 0.030618358959564863, 0.015117135106544843, 0.04642502959014735, 0.09033801520047369, 0.03697877239431929, 0.08548142723817427, 0.03755152606570627, 0.2683861161814904, 0.23483637515815037, 0.06106188314322867, 0.04662693704067945, 0.05148803785492304, 0.05694915657067999, 0.05253133739573683]</data>
+      <data key="d15">-0.15553079081815202</data>
+    </node>
+    <node id="G16">
+      <data key="d7">G16</data>
+      <data key="d8">G16</data>
+      <data key="d9">5</data>
+      <data key="d10">{"FB5A": 2, "FB5H": 1, "hDeltaM": 2}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">16</data>
+      <data key="d13">[0.009402252606437471, 0.007241420912568203, 0.06707053643280929, 0.008678012701214098, 0.020735325491080904, 0.09418737510719122, 0.015773914616501898, 0.05979229265667731, 0.01413205950841082, 0.023611562385056357, 0.09884690548165787, 0.08076619958853286, 0.19134934357224517, 0.1038052050074181, 0.09940727565121232, 0.2430153460779944, 0.07377830871563056, 0.043137095875617225, 0.09658122443825017, 0.04811373402450184, 0.0921120987983313]</data>
+      <data key="d15">0.11145523764692866</data>
+    </node>
+    <node id="G17">
+      <data key="d7">G17</data>
+      <data key="d8">G17</data>
+      <data key="d9">4</data>
+      <data key="d10">{"FB4E": 1, "FB4Z": 1, "hDeltaI": 2}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">17</data>
+      <data key="d13">[0.013614766045622988, 0.12831213854727186, 0.00548388684376043, 0.053875040731188185, 0.050653880536108704, 0.028041582297239572, 0.057650079075845434, 0.1038163843491772, 0.04703371975716899, 0.09107737715535652, 0.06152258182139016, 0.07806440619646544, 0.11804895328595746, 0.06235661821638215, 0.12094715240333344, 0.12755389444430953, 0.2849315445368907, 0.1324435277994564, 0.12652180336690255, 0.055828829147723684, 0.03514902426228452]</data>
+      <data key="d15">0.24798050554582865</data>
+    </node>
+    <node id="G18">
+      <data key="d7">G18</data>
+      <data key="d8">G18</data>
+      <data key="d9">6</data>
+      <data key="d10">{"FB4K": 1, "FB4Z": 1, "FB5V": 2, "MBON09(y3B'1)": 1, "hDeltaA": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">18</data>
+      <data key="d13">[0.10806541413806382, 0.038957246342357, 0.015542179187148139, 0.1013446303511729, 0.02615789809601606, 0.028959541740925045, 0.04393848403269779, 0.08929411191663184, 0.03874817925123868, 0.08457843388806612, 0.07237678393644596, 0.05781684637173339, 0.055653405772243925, 0.07429043530881564, 0.0589058864251362, 0.039349547708695816, 0.05050376718127222, 0.22967291317539087, 0.11390828951679056, 0.11413623974264157, 0.06407794479890057]</data>
+      <data key="d15">0.00048273488007598194</data>
+    </node>
+    <node id="G19">
+      <data key="d7">G19</data>
+      <data key="d8">G19</data>
+      <data key="d9">7</data>
+      <data key="d10">{"FB5V": 1, "FB5W": 1, "MBON09(y3B'1)(AVM17)": 2, "PPL108": 1, "PPL108(PDL05)": 1, "hDeltaI": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">19</data>
+      <data key="d13">[0.009557414951174759, 0.029414779571237226, 0.0043815257765988935, 0.019172237060680084, 0.009027189312144832, 0.010445828339543531, 0.020059154678606892, 0.02730170443061896, 0.022056369303471993, 0.042359306274782016, 0.0367093630696352, 0.03261200515615502, 0.03454283121664235, 0.028842862069158377, 0.039695402322504646, 0.024950033057501368, 0.009577071549188482, 0.034848726640239934, 0.11047016288567704, 0.04688506223129014, 0.0411421401390365]</data>
+      <data key="d15">-0.0006187462443415715</data>
+    </node>
+    <node id="G20">
+      <data key="d7">G20</data>
+      <data key="d8">G20</data>
+      <data key="d9">4</data>
+      <data key="d10">{"FB4Z": 1, "hDeltaA": 1, "hDeltaI": 2}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">20</data>
+      <data key="d13">[0.09846842156885033, 0.09101635926270085, 0.016794977365692552, 0.09654136974388826, 0.02941486727621862, 0.029919480846912073, 0.05594462094363836, 0.09515207104778171, 0.03674871524094339, 0.09728212174709909, 0.08773512485683292, 0.07533153570225368, 0.06768799224449099, 0.034223638073095086, 0.05550410092960799, 0.048066611834692484, 0.10022011477704358, 0.11227530559055668, 0.06564784863333895, 0.23620887785345623, 0.058155018609418005]</data>
+      <data key="d15">0.15569633533664382</data>
+    </node>
+    <node id="G21">
+      <data key="d7">G21</data>
+      <data key="d8">G21</data>
+      <data key="d9">4</data>
+      <data key="d10">{"FB4P_b": 1, "FB4Q_b": 1, "FB5R": 1, "FB5V": 1}</data>
+      <data key="d11">False</data>
+      <data key="d12">False</data>
+      <data key="d14">21</data>
+      <data key="d13">[0.0420556758831723, 0.020651840929864513, 0.06785483529645936, 0.06968597763747608, 0.0796873497282251, 0.027689989321489687, 0.033828452893831365, 0.05350433962856222, 0.10476224513712927, 0.032039689013251424, 0.039516805770419564, 0.0547727895596566, 0.05106431301023466, 0.09038972342508499, 0.049297188949775264, 0.03305178693828136, 0.050307927828164185, 0.06931289719883185, 0.07929666620161127, 0.12771638236320088, 0.22541122477282058]</data>
+      <data key="d15">-0.1383203286276176</data>
+    </node>
+    <edge source="G01" target="G01">
+      <data key="d16">G01</data>
+      <data key="d17">G01</data>
+      <data key="d18">-0.6090456274301388</data>
+      <data key="d19">0.6090456274301388</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.6082809995755042, "mode": 1, "rank": 1, "share": 0.981857005854407, "signed_weight": -0.6082809995755042}, {"abs_weight": 0.0025598944578884212, "mode": 3, "rank": 2, "share": 0.004132054608773997, "signed_weight": 0.0025598944578884212}, {"abs_weight": 0.0023440491404885075, "mode": 2, "rank": 3, "share": 0.003783647807940384, "signed_weight": -0.0023440491404885075}, {"abs_weight": 0.001318211429282206, "mode": 9, "rank": 4, "share": 0.0021277914778553395, "signed_weight": 0.001318211429282206}, {"abs_weight": 0.0011197673669160863, "mode": 7, "rank": 5, "share": 0.001807472919425342, "signed_weight": -0.0011197673669160863}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </edge>
+    <edge source="G01" target="G14">
+      <data key="d16">G01</data>
+      <data key="d17">G14</data>
+      <data key="d18">-0.2556039156767328</data>
+      <data key="d19">0.2556039156767328</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.2726709285411626, "mode": 1, "rank": 1, "share": 0.9308221585346725, "signed_weight": -0.2726709285411626}, {"abs_weight": 0.0102920798102545, "mode": 7, "rank": 2, "share": 0.035134277042468055, "signed_weight": 0.0102920798102545}, {"abs_weight": 0.0021974367614514727, "mode": 4, "rank": 3, "share": 0.007501433469571076, "signed_weight": 0.0021974367614514727}, {"abs_weight": 0.0016329399431128774, "mode": 10, "rank": 4, "share": 0.005574399481228001, "signed_weight": 0.0016329399431128774}, {"abs_weight": 0.0015035139273628293, "mode": 3, "rank": 5, "share": 0.005132575323458223, "signed_weight": 0.0015035139273628293}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G02" target="G02">
+      <data key="d16">G02</data>
+      <data key="d17">G02</data>
+      <data key="d18">-0.5641743628722554</data>
+      <data key="d19">0.5641743628722554</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.5439767718861797, "mode": 2, "rank": 1, "share": 0.915536362533849, "signed_weight": -0.5439767718861797}, {"abs_weight": 0.016281410737608682, "mode": 1, "rank": 2, "share": 0.02740231630101431, "signed_weight": -0.016281410737608682}, {"abs_weight": 0.015122110401505622, "mode": 4, "rank": 3, "share": 0.025451163848089087, "signed_weight": -0.015122110401505622}, {"abs_weight": 0.005848973904536517, "mode": 12, "rank": 4, "share": 0.00984407528017616, "signed_weight": 0.005848973904536517}, {"abs_weight": 0.0024483600714296097, "mode": 17, "rank": 5, "share": 0.004120695569771128, "signed_weight": 0.0024483600714296097}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </edge>
+    <edge source="G02" target="G12">
+      <data key="d16">G02</data>
+      <data key="d17">G12</data>
+      <data key="d18">-0.2456194605157777</data>
+      <data key="d19">0.2456194605157777</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.2411962753276761, "mode": 2, "rank": 1, "share": 0.8546866838659002, "signed_weight": -0.2411962753276761}, {"abs_weight": 0.012077190512790586, "mode": 12, "rank": 2, "share": 0.04279590924764696, "signed_weight": 0.012077190512790586}, {"abs_weight": 0.010982401096996112, "mode": 4, "rank": 3, "share": 0.03891648808309676, "signed_weight": -0.010982401096996112}, {"abs_weight": 0.007273028039518944, "mode": 1, "rank": 4, "share": 0.025772206508227456, "signed_weight": -0.007273028039518944}, {"abs_weight": 0.0027525929426757464, "mode": 13, "rank": 5, "share": 0.00975390076406484, "signed_weight": 0.0027525929426757464}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G03" target="G03">
+      <data key="d16">G03</data>
+      <data key="d17">G03</data>
+      <data key="d18">-0.39932002537907263</data>
+      <data key="d19">0.39932002537907263</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.4372358118980413, "mode": 3, "rank": 1, "share": 0.8793740245018596, "signed_weight": -0.4372358118980413}, {"abs_weight": 0.04602403225040868, "mode": 5, "rank": 2, "share": 0.09256409782207634, "signed_weight": 0.04602403225040868}, {"abs_weight": 0.006779510367533315, "mode": 1, "rank": 3, "share": 0.01363503435404798, "signed_weight": -0.006779510367533315}, {"abs_weight": 0.00317932132124379, "mode": 6, "rank": 4, "share": 0.006394290013231292, "signed_weight": -0.00317932132124379}, {"abs_weight": 0.0027224511764519996, "mode": 4, "rank": 5, "share": 0.0054754271777369525, "signed_weight": 0.0027224511764519996}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </edge>
+    <edge source="G03" target="G05">
+      <data key="d16">G03</data>
+      <data key="d17">G05</data>
+      <data key="d18">-0.3788308783939906</data>
+      <data key="d19">0.3788308783939906</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.4427001320663063, "mode": 3, "rank": 1, "share": 0.8301290223643386, "signed_weight": -0.4427001320663063}, {"abs_weight": 0.07322794314562635, "mode": 5, "rank": 2, "share": 0.13731335603967118, "signed_weight": 0.07322794314562635}, {"abs_weight": 0.007312647882066334, "mode": 1, "rank": 3, "share": 0.013712309524057617, "signed_weight": -0.007312647882066334}, {"abs_weight": 0.004708849081338199, "mode": 6, "rank": 4, "share": 0.008829796969129935, "signed_weight": -0.004708849081338199}, {"abs_weight": 0.0029492777910131726, "mode": 4, "rank": 5, "share": 0.005530337381891553, "signed_weight": 0.0029492777910131726}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G04" target="G01">
+      <data key="d16">G04</data>
+      <data key="d17">G01</data>
+      <data key="d18">-2.345299756658418</data>
+      <data key="d19">2.345299756658418</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 2.3257871004893307, "mode": 1, "rank": 1, "share": 0.9911640200384335, "signed_weight": -2.3257871004893307}, {"abs_weight": 0.004979120766490686, "mode": 2, "rank": 2, "share": 0.0021219162124226404, "signed_weight": -0.004979120766490686}, {"abs_weight": 0.004096561654761498, "mode": 3, "rank": 3, "share": 0.0017458023209495097, "signed_weight": -0.004096561654761498}, {"abs_weight": 0.0019486846111550062, "mode": 10, "rank": 4, "share": 0.0008304569547973929, "signed_weight": -0.0019486846111550062}, {"abs_weight": 0.0018106228253014223, "mode": 7, "rank": 5, "share": 0.0007716201529888642, "signed_weight": -0.0018106228253014223}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G04" target="G04">
+      <data key="d16">G04</data>
+      <data key="d17">G04</data>
+      <data key="d18">-0.6557451453997709</data>
+      <data key="d19">0.6557451453997709</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.5875967439511348, "mode": 1, "rank": 1, "share": 0.8560221802654567, "signed_weight": -0.5875967439511348}, {"abs_weight": 0.07042813788113744, "mode": 4, "rank": 2, "share": 0.1026010589093072, "signed_weight": -0.07042813788113744}, {"abs_weight": 0.006075828501155778, "mode": 2, "rank": 3, "share": 0.008851383221604264, "signed_weight": 0.006075828501155778}, {"abs_weight": 0.0052932616405855825, "mode": 7, "rank": 4, "share": 0.007711324844690416, "signed_weight": 0.0052932616405855825}, {"abs_weight": 0.005086441694440231, "mode": 3, "rank": 5, "share": 0.007410025589641359, "signed_weight": -0.005086441694440231}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </edge>
+    <edge source="G04" target="G14">
+      <data key="d16">G04</data>
+      <data key="d17">G14</data>
+      <data key="d18">-1.0304018396401082</data>
+      <data key="d19">1.0304018396401082</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 1.0425683667943761, "mode": 1, "rank": 1, "share": 0.9672860752531629, "signed_weight": -1.0425683667943761}, {"abs_weight": 0.016641916146916267, "mode": 7, "rank": 2, "share": 0.015440228446541535, "signed_weight": 0.016641916146916267}, {"abs_weight": 0.005947667216182157, "mode": 10, "rank": 3, "share": 0.00551819512435621, "signed_weight": 0.005947667216182157}, {"abs_weight": 0.002881453826505964, "mode": 2, "rank": 4, "share": 0.0026733883854869293, "signed_weight": -0.002881453826505964}, {"abs_weight": 0.0026802250864999817, "mode": 4, "rank": 5, "share": 0.002486690069723705, "signed_weight": -0.0026802250864999817}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G04" target="G18">
+      <data key="d16">G04</data>
+      <data key="d17">G18</data>
+      <data key="d18">-0.6072986334243936</data>
+      <data key="d19">0.6072986334243936</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.5962806728139166, "mode": 1, "rank": 1, "share": 0.9436173431061695, "signed_weight": -0.5962806728139166}, {"abs_weight": 0.018421175855954368, "mode": 4, "rank": 2, "share": 0.029151608983160535, "signed_weight": -0.018421175855954368}, {"abs_weight": 0.005982850031849787, "mode": 7, "rank": 3, "share": 0.009467892066021357, "signed_weight": 0.005982850031849787}, {"abs_weight": 0.0028517763271818544, "mode": 2, "rank": 4, "share": 0.004512951238699962, "signed_weight": 0.0028517763271818544}, {"abs_weight": 0.002701197568721465, "mode": 3, "rank": 5, "share": 0.0042746595508005615, "signed_weight": -0.002701197568721465}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G04" target="G20">
+      <data key="d16">G04</data>
+      <data key="d17">G20</data>
+      <data key="d18">-0.44902237403921735</data>
+      <data key="d19">0.44902237403921735</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.44455618367484845, "mode": 1, "rank": 1, "share": 0.9026342499445472, "signed_weight": -0.44455618367484845}, {"abs_weight": 0.01984782864431465, "mode": 4, "rank": 2, "share": 0.04029936052917949, "signed_weight": -0.01984782864431465}, {"abs_weight": 0.013348228361396708, "mode": 2, "rank": 3, "share": 0.027102464294794872, "signed_weight": 0.013348228361396708}, {"abs_weight": 0.004081768356474645, "mode": 7, "rank": 4, "share": 0.008287690182234951, "signed_weight": 0.004081768356474645}, {"abs_weight": 0.003079096001634295, "mode": 10, "rank": 5, "share": 0.006251847599931765, "signed_weight": 0.003079096001634295}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G06" target="G01">
+      <data key="d16">G06</data>
+      <data key="d17">G01</data>
+      <data key="d18">-0.4014408750670548</data>
+      <data key="d19">0.4014408750670548</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.41916856685265025, "mode": 1, "rank": 1, "share": 0.9480464993217418, "signed_weight": -0.41916856685265025}, {"abs_weight": 0.008154147880162542, "mode": 6, "rank": 2, "share": 0.01844248821132954, "signed_weight": 0.008154147880162542}, {"abs_weight": 0.0055929585635533735, "mode": 3, "rank": 3, "share": 0.01264976719710062, "signed_weight": 0.0055929585635533735}, {"abs_weight": 0.0039243849899521874, "mode": 2, "rank": 4, "share": 0.008875902789301523, "signed_weight": 0.0039243849899521874}, {"abs_weight": 0.0009369750775888143, "mode": 13, "rank": 5, "share": 0.002119185484087251, "signed_weight": 0.0009369750775888143}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G06" target="G06">
+      <data key="d16">G06</data>
+      <data key="d17">G06</data>
+      <data key="d18">-0.2905156479996253</data>
+      <data key="d19">0.2905156479996253</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.21679512674346177, "mode": 6, "rank": 1, "share": 0.7451590577249237, "signed_weight": -0.21679512674346177}, {"abs_weight": 0.04262450020194709, "mode": 1, "rank": 2, "share": 0.1465071327182709, "signed_weight": -0.04262450020194709}, {"abs_weight": 0.018280294308539984, "mode": 3, "rank": 3, "share": 0.06283225590215788, "signed_weight": -0.018280294308539984}, {"abs_weight": 0.0036218637818343814, "mode": 7, "rank": 4, "share": 0.012448917295421311, "signed_weight": -0.0036218637818343814}, {"abs_weight": 0.0026895956153128514, "mode": 8, "rank": 5, "share": 0.009244564508773277, "signed_weight": -0.0026895956153128514}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </edge>
+    <edge source="G07" target="G01">
+      <data key="d16">G07</data>
+      <data key="d17">G01</data>
+      <data key="d18">-1.3914837644545595</data>
+      <data key="d19">1.3914837644545595</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 1.3918633848206814, "mode": 1, "rank": 1, "share": 0.9821698616572407, "signed_weight": -1.3918633848206814}, {"abs_weight": 0.006592180794440605, "mode": 2, "rank": 2, "share": 0.0046517793121840035, "signed_weight": 0.006592180794440605}, {"abs_weight": 0.003406234447229424, "mode": 10, "rank": 3, "share": 0.0024036129208460095, "signed_weight": -0.003406234447229424}, {"abs_weight": 0.002512289172225111, "mode": 13, "rank": 4, "share": 0.0017727994971612944, "signed_weight": -0.002512289172225111}, {"abs_weight": 0.002301549773002251, "mode": 8, "rank": 5, "share": 0.0016240910184142135, "signed_weight": -0.002301549773002251}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G07" target="G04">
+      <data key="d16">G07</data>
+      <data key="d17">G04</data>
+      <data key="d18">-0.3861986640486144</data>
+      <data key="d19">0.3861986640486144</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.35164628472372494, "mode": 1, "rank": 1, "share": 0.8846702690173017, "signed_weight": -0.35164628472372494}, {"abs_weight": 0.016451670506707077, "mode": 4, "rank": 2, "share": 0.04138904463156015, "signed_weight": -0.016451670506707077}, {"abs_weight": 0.008044183267292695, "mode": 2, "rank": 3, "share": 0.020237523000396346, "signed_weight": -0.008044183267292695}, {"abs_weight": 0.007391295260405376, "mode": 10, "rank": 4, "share": 0.018594990052422888, "signed_weight": -0.007391295260405376}, {"abs_weight": 0.0043817339551442515, "mode": 8, "rank": 5, "share": 0.011023548165467587, "signed_weight": -0.0043817339551442515}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G07" target="G14">
+      <data key="d16">G07</data>
+      <data key="d17">G14</data>
+      <data key="d18">-0.6049942433740187</data>
+      <data key="d19">0.6049942433740187</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.6239232884248458, "mode": 1, "rank": 1, "share": 0.9436992028702634, "signed_weight": -0.6239232884248458}, {"abs_weight": 0.010396320079937913, "mode": 10, "rank": 2, "share": 0.01572468788108604, "signed_weight": 0.010396320079937913}, {"abs_weight": 0.005469341438633398, "mode": 7, "rank": 3, "share": 0.008272512425195925, "signed_weight": -0.005469341438633398}, {"abs_weight": 0.004139845875722706, "mode": 8, "rank": 4, "share": 0.006261617935096282, "signed_weight": 0.004139845875722706}, {"abs_weight": 0.00381494353440795, "mode": 2, "rank": 5, "share": 0.005770195213428873, "signed_weight": 0.00381494353440795}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G07" target="G18">
+      <data key="d16">G07</data>
+      <data key="d17">G18</data>
+      <data key="d18">-0.36705862274157036</data>
+      <data key="d19">0.36705862274157036</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.3568431673695832, "mode": 1, "rank": 1, "share": 0.944621879093338, "signed_weight": -0.3568431673695832}, {"abs_weight": 0.004303097095080743, "mode": 4, "rank": 2, "share": 0.011390997602222083, "signed_weight": -0.004303097095080743}, {"abs_weight": 0.0037756515689693778, "mode": 2, "rank": 3, "share": 0.009994763543244942, "signed_weight": -0.0037756515689693778}, {"abs_weight": 0.0019662549259021824, "mode": 7, "rank": 4, "share": 0.005204996459855352, "signed_weight": -0.0019662549259021824}, {"abs_weight": 0.0014347221123118343, "mode": 19, "rank": 5, "share": 0.0037979426864158286, "signed_weight": -0.0014347221123118343}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G07" target="G20">
+      <data key="d16">G07</data>
+      <data key="d17">G20</data>
+      <data key="d18">-0.28643829836201895</data>
+      <data key="d19">0.28643829836201895</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.266043901620426, "mode": 1, "rank": 1, "share": 0.8704860519489405, "signed_weight": -0.266043901620426}, {"abs_weight": 0.01767258493427252, "mode": 2, "rank": 2, "share": 0.05782406059100621, "signed_weight": -0.01767258493427252}, {"abs_weight": 0.0053821551250803484, "mode": 10, "rank": 3, "share": 0.01761021747640857, "signed_weight": 0.0053821551250803484}, {"abs_weight": 0.004636356248420713, "mode": 4, "rank": 4, "share": 0.015169990447195747, "signed_weight": -0.004636356248420713}, {"abs_weight": 0.0020361717007393904, "mode": 17, "rank": 5, "share": 0.006662280375799103, "signed_weight": -0.0020361717007393904}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G08" target="G01">
+      <data key="d16">G08</data>
+      <data key="d17">G01</data>
+      <data key="d18">-1.490119860503509</data>
+      <data key="d19">1.490119860503509</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 1.4832715039560949, "mode": 1, "rank": 1, "share": 0.9923586003042755, "signed_weight": -1.4832715039560949}, {"abs_weight": 0.004467707849093042, "mode": 2, "rank": 2, "share": 0.0029890470462551476, "signed_weight": -0.004467707849093042}, {"abs_weight": 0.0019946194700595026, "mode": 3, "rank": 3, "share": 0.001334467614437831, "signed_weight": -0.0019946194700595026}, {"abs_weight": 0.0012445773694271741, "mode": 13, "rank": 4, "share": 0.0008326641838672348, "signed_weight": -0.0012445773694271741}, {"abs_weight": 0.0011722347277227968, "mode": 10, "rank": 5, "share": 0.0007842645196974615, "signed_weight": 0.0011722347277227968}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G08" target="G04">
+      <data key="d16">G08</data>
+      <data key="d17">G04</data>
+      <data key="d18">-0.3493812031406716</data>
+      <data key="d19">0.3493812031406716</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.37474002067374623, "mode": 1, "rank": 1, "share": 0.920403711654092, "signed_weight": -0.37474002067374623}, {"abs_weight": 0.01962748447980513, "mode": 4, "rank": 2, "share": 0.04820731325457642, "signed_weight": 0.01962748447980513}, {"abs_weight": 0.0054517710972270435, "mode": 2, "rank": 3, "share": 0.013390164050145217, "signed_weight": 0.0054517710972270435}, {"abs_weight": 0.002543669004976308, "mode": 10, "rank": 4, "share": 0.0062475376640861845, "signed_weight": 0.002543669004976308}, {"abs_weight": 0.0024765929313576036, "mode": 3, "rank": 5, "share": 0.006082791270010522, "signed_weight": -0.0024765929313576036}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G08" target="G09">
+      <data key="d16">G08</data>
+      <data key="d17">G09</data>
+      <data key="d18">-0.2855618903333593</data>
+      <data key="d19">0.2855618903333593</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.2926837367784613, "mode": 1, "rank": 1, "share": 0.926980334101399, "signed_weight": -0.2926837367784613}, {"abs_weight": 0.010500764402906393, "mode": 2, "rank": 2, "share": 0.03325774845458572, "signed_weight": 0.010500764402906393}, {"abs_weight": 0.003988790743348409, "mode": 4, "rank": 3, "share": 0.012633194507586928, "signed_weight": -0.003988790743348409}, {"abs_weight": 0.002559486008926895, "mode": 10, "rank": 4, "share": 0.00810633765236767, "signed_weight": 0.002559486008926895}, {"abs_weight": 0.0017793296602256425, "mode": 9, "rank": 5, "share": 0.005635446714830501, "signed_weight": -0.0017793296602256425}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G08" target="G14">
+      <data key="d16">G08</data>
+      <data key="d17">G14</data>
+      <data key="d18">-0.6702057132276786</data>
+      <data key="d19">0.6702057132276786</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.6648983258471028, "mode": 1, "rank": 1, "share": 0.9835903562666758, "signed_weight": -0.6648983258471028}, {"abs_weight": 0.003577829896041864, "mode": 10, "rank": 2, "share": 0.005292717465675529, "signed_weight": -0.003577829896041864}, {"abs_weight": 0.0025854954079680193, "mode": 2, "rank": 3, "share": 0.0038247477104249943, "signed_weight": -0.0025854954079680193}, {"abs_weight": 0.0011715085142601, "mode": 3, "rank": 4, "share": 0.0017330235798721353, "signed_weight": -0.0011715085142601}, {"abs_weight": 0.0007621848432386972, "mode": 13, "rank": 5, "share": 0.0011275072178097247, "signed_weight": 0.0007621848432386972}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G08" target="G18">
+      <data key="d16">G08</data>
+      <data key="d17">G18</data>
+      <data key="d18">-0.3742449627490763</data>
+      <data key="d19">0.3742449627490763</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.38027819922062883, "mode": 1, "rank": 1, "share": 0.9706285251703671, "signed_weight": -0.38027819922062883}, {"abs_weight": 0.0051337626421802795, "mode": 4, "rank": 2, "share": 0.013103502835993923, "signed_weight": 0.0051337626421802795}, {"abs_weight": 0.0025588661288462695, "mode": 2, "rank": 3, "share": 0.006531293305376861, "signed_weight": 0.0025588661288462695}, {"abs_weight": 0.0013152154702192338, "mode": 3, "rank": 4, "share": 0.0033569782721083615, "signed_weight": -0.0013152154702192338}, {"abs_weight": 0.0003779894290399308, "mode": 6, "rank": 5, "share": 0.0009647866293438438, "signed_weight": -0.0003779894290399308}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G09" target="G01">
+      <data key="d16">G09</data>
+      <data key="d17">G01</data>
+      <data key="d18">-1.420007794362009</data>
+      <data key="d19">1.420007794362009</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 1.441512606999153, "mode": 1, "rank": 1, "share": 0.982677458119673, "signed_weight": -1.441512606999153}, {"abs_weight": 0.01206836915486708, "mode": 2, "rank": 2, "share": 0.008226993137051084, "signed_weight": 0.01206836915486708}, {"abs_weight": 0.00646657478377364, "mode": 9, "rank": 3, "share": 0.004408256466440455, "signed_weight": 0.00646657478377364}, {"abs_weight": 0.002645686124744754, "mode": 6, "rank": 4, "share": 0.0018035611366999237, "signed_weight": 0.002645686124744754}, {"abs_weight": 0.0010731180610702006, "mode": 8, "rank": 5, "share": 0.0007315433270542297, "signed_weight": -0.0010731180610702006}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G09" target="G04">
+      <data key="d16">G09</data>
+      <data key="d17">G04</data>
+      <data key="d18">-0.3189936589352604</data>
+      <data key="d19">0.3189936589352604</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.3641898753583268, "mode": 1, "rank": 1, "share": 0.7935194121749473, "signed_weight": -0.3641898753583268}, {"abs_weight": 0.06681760574135086, "mode": 4, "rank": 2, "share": 0.1455863295997634, "signed_weight": 0.06681760574135086}, {"abs_weight": 0.01472656412896986, "mode": 2, "rank": 3, "share": 0.032087148220359345, "signed_weight": -0.01472656412896986}, {"abs_weight": 0.00481949368576977, "mode": 9, "rank": 4, "share": 0.010501010750916962, "signed_weight": -0.00481949368576977}, {"abs_weight": 0.0023999490393192572, "mode": 6, "rank": 5, "share": 0.005229157315416029, "signed_weight": -0.0023999490393192572}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G09" target="G09">
+      <data key="d16">G09</data>
+      <data key="d17">G09</data>
+      <data key="d18">-0.3827352615992538</data>
+      <data key="d19">0.3827352615992538</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.2844437416241647, "mode": 1, "rank": 1, "share": 0.7362317638002338, "signed_weight": -0.2844437416241647}, {"abs_weight": 0.04645777661887635, "mode": 9, "rank": 2, "share": 0.12024764766153972, "signed_weight": -0.04645777661887635}, {"abs_weight": 0.028365127153130144, "mode": 2, "rank": 3, "share": 0.07341805966664582, "signed_weight": -0.028365127153130144}, {"abs_weight": 0.013578991620043305, "mode": 4, "rank": 4, "share": 0.03514679174858585, "signed_weight": -0.013578991620043305}, {"abs_weight": 0.010624932376278746, "mode": 6, "rank": 5, "share": 0.027500737611522698, "signed_weight": -0.010624932376278746}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </edge>
+    <edge source="G09" target="G14">
+      <data key="d16">G09</data>
+      <data key="d17">G14</data>
+      <data key="d18">-0.6310483863475521</data>
+      <data key="d19">0.6310483863475521</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.6461792844566099, "mode": 1, "rank": 1, "share": 0.9721460961368377, "signed_weight": -0.6461792844566099}, {"abs_weight": 0.006984054035204196, "mode": 2, "rank": 2, "share": 0.010507178160689544, "signed_weight": 0.006984054035204196}, {"abs_weight": 0.002542822066800629, "mode": 4, "rank": 3, "share": 0.003825555236561948, "signed_weight": 0.002542822066800629}, {"abs_weight": 0.0024144123723592193, "mode": 9, "rank": 4, "share": 0.0036323689395695953, "signed_weight": 0.0024144123723592193}, {"abs_weight": 0.001930239976296472, "mode": 8, "rank": 5, "share": 0.002903954525781274, "signed_weight": 0.001930239976296472}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G09" target="G18">
+      <data key="d16">G09</data>
+      <data key="d17">G18</data>
+      <data key="d18">-0.3588380746184463</data>
+      <data key="d19">0.3588380746184463</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.3695721362416855, "mode": 1, "rank": 1, "share": 0.9186057610208931, "signed_weight": -0.3695721362416855}, {"abs_weight": 0.017476805473865965, "mode": 4, "rank": 2, "share": 0.04344021807432984, "signed_weight": 0.017476805473865965}, {"abs_weight": 0.006912121853955034, "mode": 2, "rank": 3, "share": 0.017180718818501996, "signed_weight": -0.006912121853955034}, {"abs_weight": 0.0032659361027777695, "mode": 9, "rank": 4, "share": 0.008117786556224117, "signed_weight": -0.0032659361027777695}, {"abs_weight": 0.0022804144269607625, "mode": 6, "rank": 5, "share": 0.00566818118764072, "signed_weight": 0.0022804144269607625}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G11" target="G01">
+      <data key="d16">G11</data>
+      <data key="d17">G01</data>
+      <data key="d18">-0.5162930252278022</data>
+      <data key="d19">0.5162930252278022</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.5117433560875259, "mode": 1, "rank": 1, "share": 0.9850399192553999, "signed_weight": -0.5117433560875259}, {"abs_weight": 0.0012399016569872394, "mode": 2, "rank": 2, "share": 0.002386650678615656, "signed_weight": -0.0012399016569872394}, {"abs_weight": 0.001089388640585945, "mode": 8, "rank": 3, "share": 0.0020969325459635146, "signed_weight": -0.001089388640585945}, {"abs_weight": 0.0010180387171363026, "mode": 10, "rank": 4, "share": 0.0019595931511327707, "signed_weight": -0.0010180387171363026}, {"abs_weight": 0.0009301885498746751, "mode": 3, "rank": 5, "share": 0.001790492916344053, "signed_weight": -0.0009301885498746751}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G12" target="G02">
+      <data key="d16">G12</data>
+      <data key="d17">G02</data>
+      <data key="d18">-0.4525553977038739</data>
+      <data key="d19">0.4525553977038739</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.44336802602023256, "mode": 2, "rank": 1, "share": 0.9222278418553116, "signed_weight": -0.44336802602023256}, {"abs_weight": 0.01156792938499662, "mode": 4, "rank": 2, "share": 0.024061876196217274, "signed_weight": -0.01156792938499662}, {"abs_weight": 0.008347283164803564, "mode": 12, "rank": 3, "share": 0.017362769723229143, "signed_weight": 0.008347283164803564}, {"abs_weight": 0.00817432478344458, "mode": 1, "rank": 4, "share": 0.0170030075721258, "signed_weight": -0.00817432478344458}, {"abs_weight": 0.0019394371772223243, "mode": 8, "rank": 5, "share": 0.0040341270849379674, "signed_weight": 0.0019394371772223243}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G17" target="G02">
+      <data key="d16">G17</data>
+      <data key="d17">G02</data>
+      <data key="d18">-0.23597480790052858</data>
+      <data key="d19">0.23597480790052858</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.21276467240551653, "mode": 2, "rank": 1, "share": 0.8726552823997512, "signed_weight": -0.21276467240551653}, {"abs_weight": 0.010563244835895873, "mode": 1, "rank": 2, "share": 0.043325197275971374, "signed_weight": -0.010563244835895873}, {"abs_weight": 0.006891279344666364, "mode": 4, "rank": 3, "share": 0.028264613925913555, "signed_weight": -0.006891279344666364}, {"abs_weight": 0.0035457560784125713, "mode": 8, "rank": 4, "share": 0.014542934862937942, "signed_weight": -0.0035457560784125713}, {"abs_weight": 0.0028673703129569648, "mode": 17, "rank": 5, "share": 0.011760532525949762, "signed_weight": -0.0028673703129569648}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G18" target="G01">
+      <data key="d16">G18</data>
+      <data key="d17">G01</data>
+      <data key="d18">-1.430980051259517</data>
+      <data key="d19">1.430980051259517</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 1.4297934607140397, "mode": 1, "rank": 1, "share": 0.9935549033708723, "signed_weight": -1.4297934607140397}, {"abs_weight": 0.0014042753091914224, "mode": 13, "rank": 2, "share": 0.0009758224928746069, "signed_weight": -0.0014042753091914224}, {"abs_weight": 0.0012574442213722373, "mode": 8, "rank": 3, "share": 0.0008737904502905153, "signed_weight": 0.0012574442213722373}, {"abs_weight": 0.0012567022264353116, "mode": 19, "rank": 4, "share": 0.0008732748424575555, "signed_weight": -0.0012567022264353116}, {"abs_weight": 0.0012248383245291726, "mode": 3, "rank": 5, "share": 0.0008511328080664047, "signed_weight": -0.0012248383245291726}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G18" target="G04">
+      <data key="d16">G18</data>
+      <data key="d17">G04</data>
+      <data key="d18">-0.3876539069047473</data>
+      <data key="d19">0.3876539069047473</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.36122910040279854, "mode": 1, "rank": 1, "share": 0.9118507535143741, "signed_weight": -0.36122910040279854}, {"abs_weight": 0.02556150134112088, "mode": 4, "rank": 2, "share": 0.06452490741435066, "signed_weight": -0.02556150134112088}, {"abs_weight": 0.002393946073258034, "mode": 8, "rank": 3, "share": 0.006043038969836561, "signed_weight": 0.002393946073258034}, {"abs_weight": 0.0015208043349212604, "mode": 3, "rank": 4, "share": 0.0038389669525504657, "signed_weight": -0.0015208043349212604}, {"abs_weight": 0.0013105226620220279, "mode": 7, "rank": 5, "share": 0.0033081528468496316, "signed_weight": -0.0013105226620220279}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G18" target="G14">
+      <data key="d16">G18</data>
+      <data key="d17">G14</data>
+      <data key="d18">-0.6454563189287409</data>
+      <data key="d19">0.6454563189287409</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.6409260043089456, "mode": 1, "rank": 1, "share": 0.9779730140093001, "signed_weight": -0.6409260043089456}, {"abs_weight": 0.0041202588745625135, "mode": 7, "rank": 2, "share": 0.006287000313552775, "signed_weight": -0.0041202588745625135}, {"abs_weight": 0.002261791308996435, "mode": 8, "rank": 3, "share": 0.0034512109801259484, "signed_weight": -0.002261791308996435}, {"abs_weight": 0.0021455063221430316, "mode": 14, "rank": 4, "share": 0.0032737746172502163, "signed_weight": 0.0021455063221430316}, {"abs_weight": 0.0011597963885220676, "mode": 10, "rank": 5, "share": 0.001769704399719262, "signed_weight": -0.0011597963885220676}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G18" target="G18">
+      <data key="d16">G18</data>
+      <data key="d17">G18</data>
+      <data key="d18">-0.37529016370301593</data>
+      <data key="d19">0.37529016370301593</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.36656760481650835, "mode": 1, "rank": 1, "share": 0.9637768111185994, "signed_weight": -0.36656760481650835}, {"abs_weight": 0.0066858634277921665, "mode": 4, "rank": 2, "share": 0.01757842223193044, "signed_weight": -0.0066858634277921665}, {"abs_weight": 0.0014812531634750181, "mode": 7, "rank": 3, "share": 0.0038944997637418025, "signed_weight": -0.0014812531634750181}, {"abs_weight": 0.0012240659005840592, "mode": 19, "rank": 4, "share": 0.0032183049313767188, "signed_weight": 0.0012240659005840592}, {"abs_weight": 0.000807635911069352, "mode": 3, "rank": 5, "share": 0.0021234303105014327, "signed_weight": -0.000807635911069352}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">True</data>
+    </edge>
+    <edge source="G18" target="G20">
+      <data key="d16">G18</data>
+      <data key="d17">G20</data>
+      <data key="d18">-0.2850895609745962</data>
+      <data key="d19">0.2850895609745962</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.2732939417389306, "mode": 1, "rank": 1, "share": 0.9533151215514318, "signed_weight": -0.2732939417389306}, {"abs_weight": 0.00720365913076151, "mode": 4, "rank": 2, "share": 0.025128098838053163, "signed_weight": -0.00720365913076151}, {"abs_weight": 0.0010105772764507919, "mode": 7, "rank": 3, "share": 0.0035251370484352226, "signed_weight": -0.0010105772764507919}, {"abs_weight": 0.0008612350079668461, "mode": 3, "rank": 4, "share": 0.003004195230527889, "signed_weight": -0.0008612350079668461}, {"abs_weight": 0.0006811091160994343, "mode": 2, "rank": 5, "share": 0.002375872716653149, "signed_weight": -0.0006811091160994343}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G20" target="G01">
+      <data key="d16">G20</data>
+      <data key="d17">G01</data>
+      <data key="d18">-0.7489976256512331</data>
+      <data key="d19">0.7489976256512331</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.7452964914384873, "mode": 1, "rank": 1, "share": 0.9809681976472355, "signed_weight": -0.7452964914384873}, {"abs_weight": 0.006437283338777552, "mode": 2, "rank": 2, "share": 0.008472829682046585, "signed_weight": -0.006437283338777552}, {"abs_weight": 0.0015030623884367998, "mode": 8, "rank": 3, "share": 0.0019783487767269198, "signed_weight": 0.0015030623884367998}, {"abs_weight": 0.0008780310476728878, "mode": 13, "rank": 4, "share": 0.0011556750155251139, "signed_weight": 0.0008780310476728878}, {"abs_weight": 0.0008126444423828444, "mode": 9, "rank": 5, "share": 0.0010696123799452185, "signed_weight": 0.0008126444423828444}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G20" target="G14">
+      <data key="d16">G20</data>
+      <data key="d17">G14</data>
+      <data key="d18">-0.34197509437657114</data>
+      <data key="d19">0.34197509437657114</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.33409014337259063, "mode": 1, "rank": 1, "share": 0.9553022343840059, "signed_weight": -0.33409014337259063}, {"abs_weight": 0.0037253032370004, "mode": 2, "rank": 2, "share": 0.01065218647320447, "signed_weight": -0.0037253032370004}, {"abs_weight": 0.0027035898604995836, "mode": 8, "rank": 3, "share": 0.007730684325256535, "signed_weight": -0.0027035898604995836}, {"abs_weight": 0.00249103572329612, "mode": 7, "rank": 4, "share": 0.0071229039215958976, "signed_weight": -0.00249103572329612}, {"abs_weight": 0.0013044646264519803, "mode": 4, "rank": 5, "share": 0.003730005200826022, "signed_weight": 0.0013044646264519803}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <edge source="G21" target="G01">
+      <data key="d16">G21</data>
+      <data key="d17">G01</data>
+      <data key="d18">-0.5432636652381126</data>
+      <data key="d19">0.5432636652381126</data>
+      <data key="d20">-1</data>
+      <data key="d21">[{"abs_weight": 0.5530780686091548, "mode": 1, "rank": 1, "share": 0.9717686712411634, "signed_weight": -0.5530780686091548}, {"abs_weight": 0.007920598103334711, "mode": 3, "rank": 2, "share": 0.01391664130466924, "signed_weight": 0.007920598103334711}, {"abs_weight": 0.0028604975283840995, "mode": 2, "rank": 3, "share": 0.00502594848723032, "signed_weight": 0.0028604975283840995}, {"abs_weight": 0.0008030447895123312, "mode": 8, "rank": 4, "share": 0.0014109649475235416, "signed_weight": -0.0008030447895123312}, {"abs_weight": 0.0007115781195781084, "mode": 12, "rank": 5, "share": 0.0012502562712089038, "signed_weight": 0.0007115781195781084}]</data>
+      <data key="d22">True</data>
+      <data key="d23">True</data>
+      <data key="d24">False</data>
+    </edge>
+    <data key="d0">22</data>
+    <data key="d1">39</data>
+    <data key="d2">abs-max</data>
+    <data key="d3">mode</data>
+    <data key="d4">evr</data>
+    <data key="d5">0.1</data>
+    <data key="d6">5</data>
+  </graph>
+</graphml>

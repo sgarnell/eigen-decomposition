@@ -1,452 +1,512 @@
-# Eigen-Decomposition: Functional Mode Analysis of the Drosophila Fan-Shaped Body
+# Functional Motifs Pipeline
+
+The functional motifs pipeline turns a spectral decomposition into an interpretable
+description of circuit structure. It is designed for directed functional-connectivity
+data such as the Drosophila fan-shaped body, but the artifacts and algorithms are general
+to any compatible spectral output.
 
 ## Overview
-**Eigen-Decomposition** is a computational neuroscience project designed to extract
-functional structure, latent modes, and dynamical motifs from the **Drosophila
-fan-shaped body (FB)** using data-driven spectral methods.
 
-The FB contains rich cross–cell-type interactions that do not map cleanly onto
-anatomical wedges or layers. This project provides a principled workflow for
-discovering **functional subsystems**, **population variables**, and **reduced
-dynamical models** directly from functional connectivity data.
+The workflow is a single command with several analysis layers:
 
-The pipeline operates on Graphviz `.dot` files containing:
-- Neuron IDs  
-- Directed edges  
-- Z-score weights representing functional relationships  
+1. **Motif extraction** computes each neuron's participation in every retained mode,
+   applies per-mode thresholds, and records ordered signed members.
+2. **Cross-mode tracking** compares motif membership between modes. It produces pairwise
+   links and merges strongly related modes into motif families.
+3. **Functional neuron grouping** assigns every neuron to a population group using motif
+   dominance, loading-space clustering, or a hybrid strategy. Zero-participation neurons
+   are retained in an explicit background group.
+4. **Pathway construction** builds a directed graph whose nodes are the functional groups
+   and whose edges are signed group-to-group mode contributions, exported as a NetworkX
+   GraphML document for interactive exploration in yEd.
 
-From these, the project constructs a full **Z-matrix**, extracts **functional
-modes**, clusters neurons into **functional groups**, and analyzes the **dynamical
-behavior** of these reduced subsystems.
+Every completed run writes structured JSON, an optional NumPy sidecar, an optional expanded
+per-neuron report, and the GraphML pathway graph, plus terminal statistics. The JSON is the
+source of truth; the sidecar is a verified cache for fast array access.
 
----
+## Installation and environment
 
-## Goals
-- Build a reproducible computational pipeline for FB functional analysis  
-- Identify latent functional axes via spectral decomposition  
-- Cluster neurons into population-level functional groups  
-- Construct reduced dynamical models for each subsystem  
-- Analyze fixed points, stability, attractors, and motif structure  
-- Provide a modular codebase for future FB circuit research  
-
----
-
-## Pipeline Architecture
-
-### 1. Graphviz Parsing
-Convert `.dot` files into structured triples:
-(source_neuron, target_neuron, z_score_weight)
-
-Code
-This step extracts all nodes, edges, and functional weights.
-
-### 2. Z-Matrix Construction
-Build a square functional-connectivity matrix **Z** from the parsed pre/post
-z-scores:
-- Rows = source neurons, Columns = target neurons
-- Missing edges = 0, diagonal = 0 (there are no self-loops)
-- Optional normalization (`--normalize`) and symmetrization (`--symmetric`)
-
-Every edge also gets a single **unified weight** fused from its pre- and
-post-synaptic z-scores.  See **Phase 02** below for the rule, the artifacts and
-the full command-line interface.
-
-### 3. Spectral Decomposition
-Apply:
-- Eigen-decomposition (for symmetric Z)  
-- Singular Value Decomposition (SVD) for directed Z  
-
-Extract:
-- Leading functional modes  
-- Mode loadings for each neuron  
-- Cross-type coupling axes  
-
-These modes reveal latent structure not visible anatomically.
-
-### 4. Mode-Based Clustering
-Cluster neurons using their mode loading vectors:
-- k-means  
-- spectral clustering  
-- HDBSCAN  
-- UMAP embeddings (optional)
-
-Clusters represent **functional groups** or **population variables**.
-
-### 5. Reduced Dynamical Models
-For each functional group:
-- Define population activity variables  
-- Construct reduced rate/Wilson–Cowan equations  
-- Parameterize interactions using mode projections  
-
-This yields compact dynamical systems describing subsystem behavior.
-
-### 6. Dynamical Analysis
-Compute:
-- Fixed points  
-- Jacobians  
-- Stability  
-- Attractor classes  
-- Bifurcation structure  
-
-Determine whether each subsystem forms:
-- A single dynamical motif  
-- A composite motif  
-- A multi-attractor functional unit  
-
----
-
-## Phase 02 — Build Square Z-Matrix (`src/matrices/`)
-
-Phase 02 turns the Phase 01 artifact into the square weight matrix **Z** that
-Phases 03–06 consume.  It is the only stage that performs the pre/post →
-unified-weight computation; it does no spectral analysis, no clustering and no
-pair filtering.
-
-Pipeline order (fixed and recorded in every artifact):
-
-```
-fuse (unified weight)  ->  assemble Z  ->  normalize  ->  symmetrize
-```
-
-### Inputs
-
-`data/processed/<stem>/parsed_graph.json` — the Phase 01 artifact
-(`<stem>` = the source `.gv` stem, e.g. `FB4Yaffect_FB45_999prePost_001_all`).
-
-Relevant fields:
-
-| Field | Role |
-|---|---|
-| `neurons[].neuron_id` | row/column order (already sorted by `neuron_id`) |
-| `pairs[] = {source, target, pre_z, post_z}` | the raw triples Phase 02 fuses — **no `weight` key**, Phase 02 owns it |
-| `file_sha256`, `source_file`, `metadata.created_utc` | provenance |
-| `metadata.density`, `metadata.reciprocity` | copied verbatim into the Phase 02 artifacts |
-| `metadata.filters` | non-empty ⇒ filtered input (output name gets `.filtered`) |
-
-The input is re-validated with Phase 01's own schema checker; `.gv` files are
-never re-parsed.
-
-### The unified weight (pre/post → one scalar)
-
-Each edge carries two z-scores: `pre_z` (how strongly the source neuron
-participates) and `post_z` (how strongly the target does).  Spectral work needs a
-*single* number per edge that keeps directionality, strength and boundedness, so
-Phase 02 applies the project's unification rule:
-
-```
-s = (|pre_z| + |post_z|) / 2                      # strength
-g = tanh(alpha * log(post_z / (pre_z + eps)))     # bounded gain, g in (-1, 1)
-w = s * g                                         # the value placed in Z
-```
-
-- `g > 0` ⇒ **gain** (the target amplifies the relationship), `g < 0` ⇒
-  **attenuation**.
-- `g` is bounded, so a tiny `pre_z` can never explode the weight; `eps`
-  (`0.1` by default) stabilizes the ratio and `alpha` (`1.0` by default) sets the
-  sensitivity.  Both are exposed as `--eps` / `--alpha`.
-- Defaults reproduce every worked example in `execution-plans/zscore_context.md`:
-  `(0.2, 0.9) → 0.44`, `(0.6, 0.7) → 0.0`, `(0.9, 0.2) → −0.51`,
-  `(0.1, 0.5) → 0.22`, `(0.05, 0.08) → −0.036`.
-- A zero z-score means "no measurable relationship": with the default
-  `--zero-policy zero-in-zero-out`, either z-score being `0` yields exactly
-  `w = 0` (the raw formula would instead give the extreme attenuation limit).
-  `--zero-policy formula` restores the raw behaviour.
-
-On the reference dataset this yields 1355 weights (302 positive, 1048 negative,
-5 exactly zero) with `min = −0.563605`, `max = 0.507692`, `mean = −0.096312` over
-the stored entries.  Note the documented `eps` shifts the neutral point to
-`post_z = pre_z + eps`, so equal pre/post weights are mildly attenuating.
-
-### Outputs — the JSON + NPZ dual-artifact design
-
-Four artifacts land in `data/processed/<stem>/`:
-
-| Artifact | Written | Purpose |
-|---|---|---|
-| `z_matrix.json` | always | **canonical, self-sufficient** record: matrix, `neuron_order`, per-pair weights, provenance, config, statistics |
-| `z_matrix.npz` | unless `--no-sidecar` | derived NumPy array cache for fast loading by Phases 03+ |
-| `z_matrix.png` | `--plot` | heatmap of the effective matrix |
-| `z_matrix.data.json` | `--save-data` | per-pair weights, histogram, row/column norms, statistics |
-
-**Why two artifacts.**  `z_matrix.json` is the human-inspectable, byte-reproducible
-artifact of record: it holds the provenance, the exact construction recipe
-(`config`, including a `config_hash`) and the statistics, and it is the only thing
-`load_z_matrix()` treats as authoritative.  `z_matrix.npz` is a **derived cache** —
-arrays only, no metadata — whose content is a pure function of the JSON bytes; it is
-keyed by that JSON's SHA-256 (`source_json_sha256`) and carries `numpy_version`, so a
-stale or hand-edited cache is detected and ignored (with a warning) rather than
-trusted.  Nothing in the JSON points at the cache, so the canonical artifact never
-depends on it, and `--no-sidecar` runs still work end to end.  Both files are written
-atomically (temp file + `os.replace`) and both are byte-identical across runs when
-`SOURCE_DATE_EPOCH` is fixed.
-
-The `.npz` bundle (fixed order and little-endian dtypes):
-
-| Key | Meaning |
-|---|---|
-| `matrix` | the effective matrix — `Z`, or `Z_sym` in symmetric mode |
-| `matrix_symmetric` | the symmetrized matrix (always present) |
-| `neuron_order` | row/column index order |
-| `edge_rows`, `edge_cols`, `edge_weights` | the stored edges, aligned 1:1 with `pairs` |
-| `source_json_sha256` | digest of the JSON this cache was built from |
-| `numpy_version` | the numpy version that wrote it |
-
-**No CSV files are produced or consumed anywhere in this project.**
-
-### CLI
+The supported environment is conda-forge with Python 3.11:
 
 ```bash
-python -m src.matrices.build_square_matrix \
-  -i data/processed/<stem>/parsed_graph.json \
-  -o data/processed \
-  [--glob 'parsed_graph.json'] [--include-filtered] \
-  [--eps 0.1] [--alpha 1.0] [--zero-policy {zero-in-zero-out,formula}] \
-  [--symmetric] [--symmetrize {mean,sum,max-abs,min-abs}] \
-  [--normalize {none,rows,cols,unit,spectral,zscore-nonzero}] \
-  [--config-hash] [--no-sidecar] \
-  [--plot] [--no-popup] [--cmap viridis] [--interactive] \
-  [--save-data] [--stats] [--hist-bins 10] \
-  [--strict] [--dry-run] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+conda env create -f environment.yml
+conda activate eigen-decomposition
 ```
 
-| Option | Effect |
-|---|---|
-| `--plot` | write `z_matrix.png` (heatmap) **and** open a GUI popup window (skipped on a headless backend, or with `--no-popup`) |
-| `--interactive` | open a matplotlib window of the effective matrix with per-cell hover tooltips (source neuron, target neuron, unified weight, `(i, j)`); writes **no** artifact; needs `mplcursors` and a GUI backend |
-| `--no-popup` | with `--plot`: save the PNG without opening the window (does not affect `--interactive`) |
-| `--symmetric` | use `Z_sym = (Z + Zᵀ)/2` instead of `Z` in the JSON, the NPZ and the plot |
-| `--normalize` | `rows` (each row ÷ its L1 norm), `cols` (each column ÷ its L1 norm), `unit` (÷ max abs weight), plus `spectral`, `zscore-nonzero`, `none` |
-| `--config-hash` | force `<config_hash8>` into the filenames (non-default configs get it automatically) |
-| `--no-sidecar` | skip `z_matrix.npz`; the JSON stays canonical and loading still works |
-| `--strict` | fail on any validation issue (warnings escalate to errors) |
-| `--save-data` | write `z_matrix.data.json` (per-pair weights + statistics) |
-| `--stats` | print the Z statistics to the terminal, then the boxed summary |
-
-Exit codes: `0` success, `1` an input failed validation/writing, `2` nothing matched.
-
-### Example commands
+To update an existing environment:
 
 ```bash
-# canonical artifacts: z_matrix.json + z_matrix.npz
-python -m src.matrices.build_square_matrix \
-  -i data/processed/FB4Yaffect_FB45_999prePost_001_all/parsed_graph.json \
+conda env update -f environment.yml --prune
+```
+
+The environment includes NumPy and SciPy for decomposition, scikit-learn for optional
+loading-space grouping, NetworkX and Matplotlib for graph/visualization work, and the
+project's parsing and test dependencies.
+
+## Input requirements
+
+The motif command consumes an `eigen.json` file produced by the spectral decomposition
+command. It must contain:
+
+- `neuron_order`: the ordered neuron IDs used as matrix rows;
+- `values`: the complete ranked spectrum;
+- `modes`: retained mode records with `left` and `right` loading vectors;
+- decomposition configuration and metadata.
+
+The loading vectors must have one row per entry in `neuron_order`, and all numeric values
+used by the analysis must be finite. A sibling `parsed_graph.json` is used automatically
+when present to add `cent`, `out_degree`, and `in_degree`. An optional anatomy JSON file
+can override the region inferred from neuron IDs. `eigen.data.json`, PNG files, and CSV
+files are not valid motif inputs.
+
+## Quick Start
+
+For the canonical reference input:
+
+```bash
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed --stats --save-data
+```
+
+The command writes `motifs.json`, `motifs.npz`, the optional `motifs.data.json` report and
+the `motifs.pathway.graphml` pathway graph, and prints the layer statistics.
+
+For an input at `data/processed/sample/eigen.json`, outputs are placed in
+`data/processed/sample/`.
+
+## Analysis layers
+
+### Motif extraction
+
+Participation is computed from left (`L`) and right (`R`) loadings:
+
+| Mode | Participation |
+|---|---|
+| `left` | `abs(L)` |
+| `right` | `abs(R)` |
+| `max` | `max(abs(L), abs(R))` |
+| `rms` (default) | `sqrt((L² + R²) / 2)` |
+
+Membership is `P[i,m] >= t_m`. The default threshold is relative to each mode's maximum:
+`t_m = 0.25 * max_i(P[i,m])`. Each member also records signed participation, polarity,
+dominant axis, region, and rank. A completely zero participation row is isolated and is
+never assigned to a motif.
+
+### Cross-mode tracking
+
+For every pair of motifs with shared members, the pipeline records shared member IDs and
+count, Jaccard overlap, signed polarity agreement, and a `stable`, `flipped`, `composite`,
+or `weak` classification. Only stable and flipped links merge modes into families.
+Composite and weak links remain available for downstream analysis but do not collapse
+unrelated modes.
+
+### Functional neuron grouping
+
+Grouping creates a total partition of the neurons, including `G00` for background rows.
+The default `motif` mode assigns each nonzero row to its strongest motif. `loadings` uses
+agglomerative clustering on concatenated left/right loadings, `hybrid` starts with motif
+assignments and merges similar groups when needed, and `none` leaves the group block
+neutral. Group records include members, size, dominant mode, region composition, centroid,
+coherence, and background/singleton flags.
+
+### Pathway graph
+
+The pathway layer reduces the network to a directed graph whose nodes are the functional
+groups and whose edges are signed group-to-group contributions aggregated from the
+per-mode outer products:
+
+```text
+w          = mode weights (rule: evr | energy | uniform | value | abs_value, Σ|w| = 1)
+OP_m[i,j]  = value_m · U[i,m] · V[j,m]
+W[A,B]     = Σ_m w_m · Σ_{i∈A} Σ_{j∈B} OP_m[i,j]        # --pathway-source mode
+           = Σ_{i∈A} Σ_{j∈B} Z[i,j]                      # --pathway-source matrix
+           = mode + matrix                               # --pathway-source both
+```
+
+Edges are kept when `|W| >= --pathway-edge-threshold × abs_max` (the threshold is a
+**fraction of the strongest contribution**, so the stored weights stay on the Phase 02
+scale), then at most `--pathway-top-edges` are kept per source group. `--no-intra` drops
+self-edges. Each edge records its weight, magnitude, polarity, intra flag, contributing
+modes and the top five per-mode contributions; each node records its group metadata and its
+strongest signed-participation modes.
+
+The graph is exported with **NetworkX** to `motifs.pathway.graphml` for interactive
+exploration in yEd (custom layouts, recoloring, metadata inspection, SVG/PDF export). Node
+and edge attributes carry the full metadata, and the graph element records
+`n_nodes`, `n_edges`, `weight_normalization`, `pathway_source`, `pathway_weight_rule`,
+`threshold` and `topN`. Use `--no-graphml` to skip the artifact.
+
+`--pathway-source matrix` and `both` enrich the contributions with the raw Phase 02
+`z_matrix[.<variant>].json` sibling (`z_contribution` on every GraphML edge); a missing or
+mismatched matrix artifact is an error, because the requested source cannot be honoured.
+
+With the defaults on the reference dataset the pathway has 22 nodes and 39 edges,
+`abs_max = 2.345300`, 0 positive / 39 negative edges, 7 intra / 32 cross edges and
+`weight_concentration = 0.055842`. Every kept edge is negative at the defaults — a direct
+consequence of Phase 02's documented negative-weight bias (77 % of unified weights are
+negative).
+
+## Full CLI reference
+
+```text
+python -m src.clustering.functional_motifs \
+  -i PATH [PATH ...] -o OUTDIR [options]
+```
+
+### Motif extraction options
+
+| Option | Default | Description |
+|---|---:|---|
+| `-i, --input PATH ...` | required | One or more `eigen.json` files or directories. Directories are searched recursively. |
+| `--glob PATTERN` | `eigen.json` | Pattern used for directory inputs. |
+| `--include-variants` | off | Also process `eigen.<config_hash8>.json` inputs. |
+| `--anatomy PATH` | none | JSON region map or neuron-record file; overrides inferred regions. |
+| `--participation {left,right,max,rms}` | `rms` | Combines the two loading axes. |
+| `--threshold-method {relative,absolute,quantile,participation}` | `relative` | Selects the per-mode threshold rule. |
+| `--relative-threshold FLOAT` | `0.25` | Fraction of each mode's maximum. |
+| `--absolute-threshold FLOAT` | `0.05` | Constant threshold for `absolute`. |
+| `--quantile FLOAT` | `0.8` | Per-mode quantile for `quantile`. |
+| `--participation-threshold FLOAT` | `0.1` | Constant threshold for `participation`. |
+| `--min-members INT` | `3` | Minimum motif size; tops up from highest participation. |
+| `--max-members INT` | `0` | Maximum motif size; `0` means uncapped. |
+
+### Tracking options
+
+| Option | Default | Description |
+|---|---:|---|
+| `--family-jaccard FLOAT` | `0.2` | Minimum Jaccard for a family-eligible link. |
+| `--family-polarity FLOAT` | `0.5` | Signed agreement required for stable/flipped classification. |
+| `--link-min-jaccard FLOAT` | `0.1` | Links below this overlap are classified as weak. |
+
+### Grouping options
+
+| Option | Default | Description |
+|---|---:|---|
+| `--grouping {motif,loadings,hybrid,none}` | `motif` | Grouping algorithm. |
+| `--polarity-split` | off | Split a group by seed-mode polarity when the minority is large enough. |
+| `--polarity-min-members INT` | `3` | Minimum minority size for a polarity split. |
+| `--max-group-size INT` | `12` | Size cap that can trigger deterministic merging. |
+| `--n-groups N\|auto` | `auto` | Cluster count for loading grouping; `auto` resolves to retained mode count. |
+| `--linkage {ward,complete,average,single}` | `average` | Agglomerative linkage. |
+| `--affinity {euclidean,cosine,manhattan}` | `cosine` | Loading-space distance metric. |
+| `--merge-threshold FLOAT` | `0.9` | Minimum centroid cosine for hybrid merging. |
+
+### Pathway graph options
+
+| Option | Default | Description |
+|---|---:|---|
+| `--pathway-source {mode,matrix,both}` | `mode` | Per-mode outer products, the raw Phase 02 matrix, or both. |
+| `--pathway-weight {evr,energy,uniform,value,abs_value}` | `evr` | Mode weighting rule (`evr` and `energy` are equivalent). |
+| `--pathway-edge-threshold FLOAT` | `0.1` | Minimum edge weight as a fraction of `abs_max`. |
+| `--pathway-top-edges INT` | `5` | Strongest edges kept per source group. |
+| `--no-intra` | off | Exclude intra-group (self) edges. |
+| `--graphml` / `--no-graphml` | on | Write `motifs.pathway.graphml` (NetworkX). |
+
+### Global and output options
+
+| Option | Description |
+|---|---|
+| `-o, --outdir PATH` | Output root; default `data/processed`. |
+| `--config-hash` | Always include the eight-character configuration hash in filenames. |
+| `--no-sidecar` | Do not write `motifs.npz`; JSON remains complete and canonical. |
+| `--save-data` | Write the expanded per-neuron `motifs.data.json` report. |
+| `--stats` | Print motif, tracking, and grouping statistics. |
+| `--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}` | Set logging verbosity; default `INFO`. |
+
+### Batch options
+
+Pass multiple paths after `-i`, or pass a directory:
+
+```bash
+python -m src.clustering.functional_motifs \
+  -i data/processed --glob eigen.json --include-variants \
+  -o data/processed --no-sidecar --strict
+```
+
+Each resolved input is processed independently and deterministically. Variant inputs are
+excluded unless `--include-variants` is supplied; motif outputs inherit the input variant
+suffix.
+
+### Dry-run and validation options
+
+| Option | Description |
+|---|---|
+| `--dry-run` | Resolve, analyze, validate, and report without writing artifacts. |
+| `--strict` | Treat validation warnings as failures. |
+
+Exit status is `0` for success, `1` for validation or write failure, and `2` when no input
+matches.
+
+## Full pipeline examples
+
+### Default pipeline
+
+```bash
+python -m src.clustering.functional_motifs \
+  -i data/processed/FB4Yaffect_FB45_999prePost_001_all/eigen.json \
+  -o data/processed --stats --save-data
+```
+
+### Custom motif thresholds
+
+```bash
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed \
+  --participation rms --threshold-method absolute \
+  --absolute-threshold 0.10 --min-members 5 --max-members 40 \
+  --config-hash --stats
+```
+
+### Custom tracking thresholds
+
+```bash
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed \
+  --family-jaccard 0.35 --family-polarity 0.75 \
+  --link-min-jaccard 0.15 --config-hash --stats
+```
+
+Use `--config-hash` whenever changing tracking or grouping settings to make the output
+filename unambiguous and prevent accidental replacement of the canonical artifact.
+
+### Loading clustering
+
+```bash
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed \
+  --grouping loadings --n-groups 12 \
+  --linkage average --affinity cosine --config-hash --save-data
+```
+
+The reference data has low within-group loading coherence, so loading clustering should
+normally use an explicit `--n-groups` rather than relying on `auto`.
+
+### Hybrid grouping and polarity splitting
+
+```bash
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed \
+  --grouping hybrid --merge-threshold 0.85 --max-group-size 10 \
+  --polarity-split --polarity-min-members 3 \
+  --config-hash --stats
+```
+
+### Pathway graph
+
+```bash
+# default pathway: mode contributions, evr weights, threshold 0.1 x abs_max, top 5 per source
+python -m src.clustering.functional_motifs \
+  -i data/processed/FB4Yaffect_FB45_999prePost_001_all/eigen.json \
   -o data/processed --stats
 
-# symmetric, row-normalized variant with plot, save-data and hashed filenames
-#   -> z_matrix.<config_hash8>.{json,npz,png,data.json}
-python -m src.matrices.build_square_matrix \
-  -i data/processed/FB4Yaffect_FB45_999prePost_001_all/parsed_graph.json \
-  -o data/processed --symmetric --normalize rows --config-hash \
-  --plot --save-data --stats
+# cross-group edges only, stricter threshold, JSON + GraphML
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed \
+  --no-intra --pathway-edge-threshold 0.25 --pathway-top-edges 3 --stats
 
-# JSON-only run over a whole processed tree (recursive), strict
-python -m src.matrices.build_square_matrix \
-  -i data/processed -o data/processed --no-sidecar --strict --include-filtered
+# enrich the contributions with the raw Phase 02 matrix (needs z_matrix.json next to eigen.json)
+python -m src.clustering.functional_motifs \
+  -i data/processed/<stem>/eigen.json -o data/processed \
+  --pathway-source both --config-hash --stats
 
-# CI-safe: save the heatmap without opening a window, and validate without writing
-python -m src.matrices.build_square_matrix -i <artifact> -o data/processed --plot --no-popup
-python -m src.matrices.build_square_matrix -i <artifact> -o data/processed --dry-run --stats
-
-# interactive inspection: hover any cell for its neurons, weight and (i, j)
-python -m src.matrices.build_square_matrix -i <artifact> -o data/processed --interactive
-
-# PNG on disk *and* the hover-tooltip window (only one window opens)
-python -m src.matrices.build_square_matrix -i <artifact> -o data/processed --plot --interactive
+# JSON and NPZ only (no GraphML)
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed --no-graphml --no-sidecar
 ```
 
-### The heatmap (`--plot`)
+### Batch processing
 
-`--plot` renders the effective matrix as a heatmap with a perceptually uniform
-colormap (`viridis` by default, `--cmap plasma` for the alternative): x axis =
-target neuron index, y axis = source neuron index, with a colorbar labelled
-`unified weight w`.  Positive (gain) edges appear warm, negative (attenuation)
-edges cold, and the block structure of the functional connectivity stands out
-against the zero (absent-edge) background.  For the reference dataset the figure is
-saved as a 1093×923 PNG (`z_matrix.png`).  The PNG is always written; the GUI popup
-is only shown when the matplotlib backend is interactive (see below).
-
-### Interactive mode (`--interactive`)
-
-`--interactive` opens a real matplotlib window (`plt.show()`) of the **same**
-effective matrix and attaches an [`mplcursors`](https://mplcursors.readthedocs.io/)
-hover cursor to the heatmap: move the mouse over any cell and a popup appears —
-no click required (right-click removes it, `Shift` + arrow keys step one cell at
-a time).  The tooltip reports exactly four things:
-
-```
-source: ExR7(ring)_L_1
-target: ExR7(ring)_L_2
-unified weight: -0.102144
-(i, j) = (17, 42)
+```bash
+python -m src.clustering.functional_motifs \
+  -i data/processed -o data/processed \
+  --glob eigen.json --include-variants --strict --save-data
 ```
 
-Two extra lines keep the tooltip honest:
+### Dry-run validation
 
-* a cell with no stored edge adds `stored edge: none (absent)` (and marks the
-  weight line `(absent edge)`) — a stored edge whose unified weight is exactly
-  `0.0` (`--zero-policy zero-in-zero-out`) is **not** called absent;
-* when `--normalize` or `--symmetric` makes the displayed value differ from the
-  unified weight of the originating pair, the raw value is added as
-  `raw unified weight: …` (or `raw unified weight (reverse direction): …`).
-
-**`--plot` vs `--interactive`.**  They are independent, presentation-only flags:
-
-| | `--plot` | `--interactive` |
-|---|---|---|
-| writes an artifact | `z_matrix.png` | none |
-| opens a window | yes (plain `plt.show()`, skipped when headless or with `--no-popup`) | yes (hover tooltips; skipped only when headless) |
-| CI / headless | safe — PNG is written either way | degrades to a warning, nothing is written |
-| needs `mplcursors` | no | yes |
-| good for | sharing/committing a figure | exploring cell by cell |
-
-Because the tooltip window is the richer one, `--plot --interactive` writes the
-PNG **and** suppresses the plain `--plot` popup, so exactly one window opens.
-`--interactive` never changes the matrix, the `config_hash`, the artifact names
-or any JSON/NPZ content: it is presentation only, and under `--dry-run` it opens
-nothing.  With several inputs (`-i data/processed`) one window is opened per
-artifact, sequentially.
-
-`mplcursors` is a conda-forge dependency of this project
-(`conda install -c conda-forge mplcursors`, already listed in
-`environment.yml`); it is imported lazily, so every non-interactive run works
-even without it.
-
-### `--stats` / the completion box (terminal) vs the GUI popup
-
-These two outputs are deliberately different things:
-
-* **Terminal only** — `--stats` prints min/max/mean/std, sparsity, positive/negative
-  counts, row and column norm summaries, the spectral radius (only in symmetric
-  mode) and density/reciprocity; every successful run then prints a boxed summary:
-
-  ```
-  +--------------------------------------------------------------+
-  | Phase 02 complete                                            |
-  | Z matrix shape: 113x113                                      |
-  | Unified weights: OK                                          |
-  | Symmetric mode: no                                           |
-  | Normalization: none                                          |
-  | JSON written: z_matrix.json                                  |
-  | NPZ written:  z_matrix.npz                                   |
-  | Plot:        not requested (--plot)                          |
-  | Save-data:   not requested (--save-data)                     |
-  | Stats: min/max/mean/std printed above (--stats)              |
-  +--------------------------------------------------------------+
-  ```
-
-* **GUI windows** — Phase 02 opens exactly two kinds of window, both optional:
-  * the `--plot` heatmap popup, shown after the PNG is saved (forced off with
-    `--no-popup`, skipped on a non-interactive backend);
-  * the `--interactive` hover-tooltip window, which *replaces* the plain popup
-    when both flags are given.
-
-  Both are skipped automatically on a non-interactive backend (e.g. headless CI —
-  a file-only backend such as `Agg` is recognised as headless, while the desktop
-  backends `qtagg`/`tkagg`/`gtk3agg`/`wxagg` are not).  Artifacts are written
-  either way, so a batch run never blocks on a window.  A run with
-  `--interactive` adds one line to the summary box:
-
-  ```
-  | Interactive: window shown (--interactive)         |
-  | Interactive: skipped (non-interactive backend)    |
-  | Interactive: skipped (--dry-run)                  |
-  ```
-
-### How Phase 03 loads the artifacts
-
-```python
-from src.matrices.build_square_matrix import load_sidecar_arrays, load_z_matrix
-
-# fast path: arrays only (no JSON parsing, no pickle)
-arrays = load_sidecar_arrays("data/processed/<stem>/z_matrix.npz")  # or the .json path
-z_directed  = arrays["matrix"]             # effective matrix (Z_sym with --symmetric)
-z_symmetric = arrays["matrix_symmetric"]   # always symmetric
-order       = arrays["neuron_order"]       # row/column order
-
-# full object: verified against the cache, with config/metadata/pairs
-z = load_z_matrix("data/processed/<stem>/z_matrix.json")
-z.config                       # symmetric / normalize / eps / alpha / config_hash
-z.index                        # neuron_id -> row/column
-z.metadata["spectral_radius"]  # sanity checks Phase 03 can cross-validate
+```bash
+python -m src.clustering.functional_motifs \
+  -i eigen.json -o data/processed --dry-run --stats --strict
 ```
 
-`load_z_matrix()` verifies the `.npz` against the JSON's SHA-256 and arrays, and
-silently falls back to the JSON when the cache is missing or stale, so Phases 03+
-can always load *something* correct.
+## Artifact description
 
-### Symmetric mode and eigen-decomposition
+Artifacts are written under `<outdir>/<input-stem>/`. For a variant or hashed run, the
+variant/hash segment is retained in the filename.
 
-Phase 03 extracts latent functional modes with either an eigen-decomposition or an
-SVD.  A symmetric matrix has **real eigenvalues and orthogonal eigenvectors**,
-which is exactly what a true eigen-decomposition requires and what makes the modes
-interpretable as orthogonal axes of functional variation.  The directed `Z` is not
-symmetric (574 of 1355 edges are reciprocal), so its spectrum would be complex —
-that path uses SVD instead.
+### `motifs.json`
 
-`--symmetric` therefore computes `Z_sym = (Z + Zᵀ)/2` (or `sum` / `max-abs` /
-`min-abs` via `--symmetrize`) and puts it in the JSON, the `.npz` and the plot, with
-`config.symmetric` and the save-data `symmetric` flag recording the choice.
-`matrix_symmetric` is written in *every* run, so Phase 03 can always choose the eigen
-path without re-running Phase 02.  On the reference data the symmetric variant has a
-spectral radius of 2.433314 (directed `Z` largest singular value 4.441773).
+The canonical, self-contained artifact contains provenance, the complete hashed config,
+`neuron_order`, motif records, links, families, groups, pathway placeholders, and metadata.
+Motif records include mode/value fields, threshold, membership, signed participation,
+sender/receiver members, strength, variance share, polarity counts, and region composition.
 
----
+Link records contain `source_mode`, `target_mode`, labels, shared members, `n_shared`,
+`jaccard`, `polarity_agreement`, and `classification`. Family records contain family ID,
+modes, merged members, polarity, and per-mode occurrences.
 
-## Repository Structure
-eigen-decomposition/
-│
-├── data/
-│   ├── raw_dot/          # Original Graphviz files
-│   └── processed/        # Parsed triples, Z-matrices, metadata
-│
-├── src/
-│   ├── parsing/          # Graphviz → triples
-│   ├── matrices/         # Z-matrix construction
-│   ├── spectral/         # SVD, eigen, mode extraction
-│   ├── clustering/       # Mode-based clustering
-│   ├── dynamics/         # Reduced models, Jacobians, stability
-│   └── utils/            # Shared helpers
-│
-├── tests/                # Unit tests for each module
-│
-├── environment.yml       # Conda-forge environment specification
-└── README.md             # Project overview
+Group records contain:
 
-Code
+```text
+group_id, label, members, n_members, size, dominant_mode,
+region_composition, cent_mean, coherence, is_background, is_singleton
+```
 
----
+The group list is a total partition when grouping is active. `G00` is the background group;
+singleton groups are flagged explicitly. The `pathway` object holds the 04D group-to-group
+graph: `nodes` (every group), `edges` (the filtered signed contributions), `n_nodes`,
+`n_edges`, `weight`, `source`, `edge_threshold`, `top_edges`, `intra`, `abs_max`,
+`n_positive`, `n_negative`, `n_intra`, `n_cross`, `weight_concentration` and `weights`.
 
-## Environment
-This project uses a **conda-forge only** environment for numerical stability and
-dependency consistency.
+### `motifs.npz`
 
-Key packages include:
-- numpy, scipy, numba  
-- pandas, networkx, pydot, graphviz  
-- scikit-learn, hdbscan, umap-learn  
-- sympy, jax, pyDSTool  
-- matplotlib, seaborn, mplcursors  
+Unless `--no-sidecar` is used, the verified sidecar contains **24 arrays** for an active
+grouping run:
 
-See `environment.yml` for full details.
+| Array | Shape | Meaning |
+|---|---:|---|
+| `stage` | `(1,)` | Writer stage marker. |
+| `participation` | `(N,k)` | Non-negative participation matrix. |
+| `membership` | `(N,k)` | Binary motif membership. |
+| `loadings_left`, `loadings_right` | `(N,k)` | Original loading bases. |
+| `values` | `(N,)` | Complete ranked spectrum. |
+| `retained_values`, `abs_retained_values` | `(k,)` | Retained values and magnitudes. |
+| `explained_variance_ratio` | `(N,)` | Ranked explained variance. |
+| `thresholds` | `(k,)` | Effective motif thresholds. |
+| `motif_strength_l1`, `motif_strength_energy` | `(k,)` | Motif strength summaries. |
+| `family_of_mode` | `(k,)` | Family index for each mode. |
+| `link_jaccard`, `link_polarity` | `(k,k)` | Symmetric link matrices with unit diagonal. |
+| `neuron_order` | `(N,)` | Row order. |
+| `source_json_sha256` | `(1,)` | Digest of the canonical JSON. |
+| `numpy_version` | `(1,)` | NumPy writer version. |
+| `group_labels` | `(N,)` | Group index for each neuron. |
+| `group_centroids` | `(G,k)` | Mean unsigned participation per group. |
+| `group_sizes` | `(G,)` | Group member counts. |
+| `mode_outer_products` | `(k,N,N)` | Rank-1 `value_m · u_m v_mᵀ` per mode. |
+| `pathway_adjacency`, `pathway_adjacency_abs` | `(G,G)` | Filtered signed pathway adjacency and its magnitude. |
 
----
+The three 04D arrays: `mode_outer_products` is always written; the two adjacency arrays are
+written only when the pathway layer runs (i.e. grouping is active). The sidecar is derived
+from the JSON digest, read with `allow_pickle=False`, and ignored when stale or tampered;
+the JSON remains authoritative.
+
+### `motifs.data.json`
+
+Written with `--save-data`, this expanded report contains the same motifs, links, families,
+groups, pathway block, provenance, config, metadata, and a `neurons` table. Each neuron row
+contains ID, index, region, centrality/degrees when available, recurrence, maximum and mean
+participation, dominant mode, group ID, and the full participation row.
+
+### `motifs.pathway.graphml`
+
+The pathway graph is exported with NetworkX for interactive exploration in yEd. Node
+attributes: `group_id`, `label`, `size`, `dominant_mode`, `region_composition` (JSON),
+`centroid` (JSON), `coherence`, `is_background`, `is_singleton`. Edge attributes:
+`source_group`, `target_group`, `weight`, `abs_weight`, `polarity`, `contribution_by_mode`
+(JSON), `threshold_flag`, `topN_flag`, `intra_flag` and, with `--pathway-source
+matrix|both`, `z_contribution`. The graph element records `n_nodes`, `n_edges`,
+`weight_normalization`, `pathway_source`, `pathway_weight_rule`, `threshold` and `topN`.
+Attributes that do not apply (a background group's dominant mode, a singleton's coherence,
+`z_contribution` for mode-only contributions) are omitted rather than emitted as null.
+
+## Reference numbers
+
+With default settings on the canonical reference dataset (`rms`, relative threshold
+`0.25`, motif grouping), the expected output is:
+
+| Quantity | Value |
+|---|---:|
+| Neurons / retained modes / motifs | `113 / 21 / 21` |
+| Total motif memberships | `623` |
+| Minimum / median / maximum / mean motif size | `11 / 23 / 60 / 29.666667` |
+| Unique members / neurons in no motif | `107 / 6` |
+| Membership density | `0.26253687315634217` |
+| Recurrence ≥1 / ≥2 / ≥5 / maximum | `107 / 99 / 70 / 13` |
+| Derived regions | `31` |
+| Cross-mode links | `187` |
+| Stable / flipped / composite / weak links | `1 / 2 / 133 / 51` |
+| Families / multi-mode families | `18 / 3` |
+| Functional groups | `22` |
+| Background groups | `1` |
+| Non-background singleton groups | `3` |
+| Largest / smallest / mean group size | `10 / 1 / 5.136364` |
+| Group coherence min / max / mean | `-0.155531 / 0.876450 / 0.147827` |
+| Pathway nodes / edges | `22 / 39` |
+| Pathway `abs_max` / smallest kept \|edge\| | `2.345300 / 0.235975` |
+| Pathway positive / negative edges | `0 / 39` |
+| Pathway intra / cross edges | `7 / 32` |
+| Pathway `weight_concentration` | `0.055842` |
+| Pathway edges at threshold only (0.05/0.1/0.2/0.25 × `abs_max`) | `91 / 46 / 17 / 14` |
+
+The reference non-background group sizes are:
+
+```text
+10, 10, 9, 7, 7, 7, 7, 7, 6, 6, 5, 5, 5, 4, 4, 4, 4, 2, 1, 1, 1
+```
+
+The isolated background neuron is `DNa03_R_1`. Representative group compositions include
+`G01 ≈ FB4K/hDeltaA`, `G02 ≈ FB4E/hDeltaI`, and `G03 ≈ FB5O/R/S/U/hDeltaH`.
+Group coherence is the mean pairwise cosine of signed participation rows; singleton and
+background coherence are null.
+
+Set `SOURCE_DATE_EPOCH` to make timestamps deterministic. With the same input, options,
+software versions, and epoch, the JSON, NPZ and GraphML outputs are byte-identical.
+
+## Advanced usage
+
+### Threshold tuning
+
+Relative thresholds preserve a comparable fraction of each mode's strongest participants.
+Absolute and participation thresholds are useful when amplitudes are on a calibrated scale;
+quantiles control the fraction retained per mode. `--min-members` and `--max-members` apply
+after thresholding and use deterministic participation ordering.
+
+### Jaccard and polarity math
+
+For motif member sets `A` and `B`:
+
+```text
+jaccard(A,B) = |A ∩ B| / |A ∪ B|
+polarity_agreement = (same_polarity - opposite_polarity) / |A ∩ B|
+```
+
+The thresholds are inclusive for stable/flipped family links. A link below
+`--link-min-jaccard` is weak; strong overlap with positive agreement is stable, strong
+overlap with negative agreement is flipped, and all other reported links are composite.
+
+### Group coherence
+
+For signed participation rows `S_i = polarity_i * P_i`, coherence is the mean cosine over
+the strict upper triangle of all member pairs. It is undefined for groups with fewer than
+two members. This measures signed functional agreement, not anatomical similarity.
+
+### Clustering modes and zero vectors
+
+`motif` is deterministic and NumPy-only. `loadings` uses scikit-learn agglomerative
+clustering on `[left | right]`; `hybrid` performs deterministic centroid-based merging;
+`none` emits no group arrays. All-zero vectors are removed before scikit-learn runs and
+reattached to `G00`, preventing undefined cosine distances and preserving the total
+partition invariant.
+
+### Determinism and config hashing
+
+Member ties are broken by neuron index, family components by their lowest mode, and group
+labels by size and raw cluster label. `--config-hash` adds the first eight characters of
+the complete analysis configuration to filenames. Presentation choices such as statistics,
+save-data, and sidecar suppression do not alter the analysis hash.
 
 ## Status
 
-| Phase | Module | State |
+| Capability | Status | Main output |
 |---|---|---|
-| 01 — Parse Graphviz `.gv` files | `src/parsing/parse_graphviz.py` | implemented → `parsed_graph.json` |
-| 02 — Build square Z-matrix | `src/matrices/build_square_matrix.py` | implemented → `z_matrix.json` + `z_matrix.npz` (`--plot`, `--interactive`, `--save-data`) |
-| 03 — Eigen / SVD decomposition | `src/spectral/` | planned |
-| 04 — Mode loadings & clustering | `src/clustering/` | planned |
-| 05 — Reduced dynamical models | `src/dynamics/` | planned |
-| 06 — Dynamical structure analysis | `src/dynamics/` | planned |
+| Motif extraction | ✔ Implemented | `motifs.json`, `motifs.npz`, optional `motifs.data.json` |
+| Cross-mode tracking | ✔ Implemented | links, families, link matrices |
+| Functional neuron grouping | ✔ Implemented | groups, group arrays, coherence statistics |
+| Pathway graph (GraphML) | ✔ Implemented | `motifs.pathway.graphml`, pathway block, adjacency arrays |
 
-Each phase has an execution plan in `execution-plans/`.  Run the test suite with
-`python -m pytest -m "not slow"` (fast) or `python -m pytest` (adds the integration
-tests against the real dataset).
-
----
+The source entry point is `src/clustering/functional_motifs.py`. The upstream parsing,
+matrix construction, and spectral commands produce the `eigen.json` input consumed here.
 
 ## License
-MIT License (recommended for open scientific work).
+
+MIT License.
