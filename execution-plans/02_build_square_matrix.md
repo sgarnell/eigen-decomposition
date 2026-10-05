@@ -33,7 +33,7 @@ already pinned).
 |---|---|
 | pre/post unification (`unified_weight`) | `.gv` parsing / hub collapse (Phase 01) |
 | dense matrix assembly + neuron index order | pair filtering / thresholding (Phase 01 CLI) |
-| diagonal-zero policy, duplicate-coordinate checks | eigendecomposition, SVD, scree plots (Phase 03) |
+| diagonal-zero policy (unless `--allow-self-loops`), duplicate-coordinate checks | eigendecomposition, SVD, scree plots (Phase 03) |
 | `--normalize` variants, `--symmetric` + `--symmetrize` | clustering, UMAP, loadings (Phase 04) |
 | the four artifacts, `--plot`, `--stats`, `--save-data` | dynamical models, Jacobians (Phases 05–06) |
 | `load_z_matrix()` / `load_sidecar_arrays()` for Phase 03+ | multi-file union (deliberately unsupported, §24) |
@@ -128,6 +128,11 @@ share the same variant stem (`z_matrix.<hash8>.png`, `z_matrix.<hash8>.data.json
 `col_norm_stats`, `frobenius_norm`, `largest_singular_value`, `spectral_radius`,
 `symmetrized_spectral_radius`, `normalization_scale`, `config_hash`, `numpy_version`,
 `generator`, `created_utc`.
+
+`metadata.n_self_loops` counts the populated diagonal entries: it is always `0` unless
+`--allow-self-loops` kept one or more self-loop pairs (see §17.1). `config.allow_self_loops`
+records the flag and is part of the configuration hash, so a self-loop run is a *variant*
+(`z_matrix.<config_hash8>.json`) that cannot clobber the canonical artifact.
 
 **Statistic conventions** (documented because they are easy to get wrong):
 
@@ -266,7 +271,7 @@ requirement that *both the JSON and the NPZ contain `Z_sym` instead of `Z`*:
 `hash_fields` covers exactly the **matrix-defining** fields:
 
 ```
-unification, eps, alpha, zero_policy, symmetric, symmetrize, normalize, dtype, filters
+unification, eps, alpha, zero_policy, symmetric, symmetrize, normalize, dtype, allow_self_loops, filters
 ```
 
 * `filters` is the Phase 01 `metadata.filters` list of the input artifact, so the hash also
@@ -301,7 +306,7 @@ Phase 01 test modules (apart from the README documentation update in §23).
 
 ```python
 @dataclass(frozen=True)
-class ZMatrixConfig:      # eps, alpha, zero_policy, symmetric, symmetrize, normalize, dtype, filters
+class ZMatrixConfig:      # eps, alpha, zero_policy, symmetric, symmetrize, normalize, dtype, allow_self_loops, filters
     def to_dict() -> dict         # payload written to `config` (incl. config_hash)
     def hash_fields() -> dict     # built directly, never via to_dict() (would recurse)
     def config_hash() -> str      # 8 hex chars
@@ -334,7 +339,8 @@ collection and the `...Error(ValueError)`-with-`.report` convention are reused v
    neuron list and the pairs (§17).
 4. **Fuse**: vectorized `unified_weights(pre_z, post_z, eps, alpha, zero_policy)`.
 5. **Assemble** the directed `Z` by scatter (after duplicate-coordinate and self-loop
-   checks); the diagonal stays exactly `0.0`.
+   checks); the diagonal stays exactly `0.0` unless `--allow-self-loops` kept a self-loop
+   pair, whose weight is scattered onto `Z[i, i]`.
 6. **Normalize** (`--normalize`) then **symmetrize** (`--symmetrize`/`--symmetric`); the
    effective matrix is `Z_sym` in symmetric mode.
 7. **Diagnose**: counts, statistics, row/column norms, histogram, Frobenius norm, σ₁,
@@ -536,10 +542,10 @@ PNG is written and exactly one window opens.
 | Input artifact conforms to the Phase 01 schema | Error |
 | `neurons` non-empty; `neuron_id` unique, non-empty, contains no `--` | Error |
 | Pair endpoints ∈ `neuron_order` | Error |
-| No duplicate coordinate, no self-loop | Error |
+| No duplicate coordinate; self-loop is an error (warning and diagonal entry with `--allow-self-loops`) | Error / warning |
 | `pre_z`/`post_z` finite and `≥ 0` | Error |
 | `eps > 0`, `alpha > 0`, valid `--zero-policy`/`--symmetrize`/`--normalize`/dtype | Error |
-| `matrix.shape == (N, N)`, diagonal exactly `0.0`, `matrix_symmetric` exactly symmetric | Error |
+| `matrix.shape == (N, N)`; diagonal exactly `0.0` (no self-loops) or equal to the symmetrized diagonal (self-loops allowed); `matrix_symmetric` exactly symmetric | Error |
 | All emitted entries finite (guards `NaN`/`Infinity` in JSON) | Error |
 | Payload conforms to the Phase 02 schema | Error |
 | Sidecar/plot/save-data write failures | Error (never leaves a partial file) |
@@ -547,6 +553,26 @@ PNG is written and exactly one window opens.
 | `N < 2` (1×1 matrix, density undefined) | Warning |
 | Filtered input | Informational log line (output name carries `.filtered`) |
 | Popup skipped (headless/`--no-popup`) | Informational log line |
+### 17.1 Self-loops (`--allow-self-loops`)
+
+Phase 01 may legitimately emit a self-loop pair `(A, A)` (hub `"A--A"`) when it is run with
+its own `--allow-self-loops`. Phase 02 mirrors that flag:
+
+- **default (`allow_self_loops=False`)** — a `(A, A)` pair is a `CODE_SELF_LOOP` **error**;
+  the run aborts and no artifact is written. The diagonal invariant (`diag(Z) == 0`) is
+  enforced as before.
+- **`--allow-self-loops`** — the same pair becomes a `CODE_SELF_LOOP` **warning** and is kept:
+  its unified weight is computed by the usual rule and scattered onto the diagonal `Z[i, i]`
+  (and `matrix_symmetric[i, i]`). `metadata.n_self_loops` counts the populated diagonal
+  entries; `config.allow_self_loops` records the flag. Symmetrization preserves the diagonal
+  (it is its own transpose), and the diagonal entry participates in `matrix_stats`, the
+  row/column norms and every `--normalize` mode, so `--symmetric` spectral quantities may
+  change.
+
+`allow_self_loops` is in `MATRIX_CONFIG_FIELDS` (hashed) and `DEFAULT_DECISION_FIELDS`, so a
+self-loop run is named `z_matrix.<config_hash8>.json` and can never overwrite the canonical
+`z_matrix.json`. `--allow-self-loops --strict` still fails the run: `--strict` escalates the
+warning back to an error *before* anything is written.
 
 The filtered-input and popup notices are deliberately **not** validation warnings so
 `--strict` stays usable on filtered artifacts and in headless CI.
@@ -554,7 +580,8 @@ The filtered-input and popup notices are deliberately **not** validation warning
 ## 18. Invariants (asserted in tests)
 
 1. `matrix.shape == (N, N) == (len(neuron_order), len(neuron_order))`.
-2. `matrix[i, i] == 0.0` for every `i`.
+2. `matrix[i, i] == 0.0` for every `i` unless `--allow-self-loops` kept self-loops, in which
+   case `matrix[i, i] == matrix_symmetric[i, i]` is the pair's unified weight.
 3. `matrix_symmetric == symmetrize(matrix, method)` **exactly**; in symmetric mode
    `matrix == matrix_symmetric`.
 4. With `normalize = none`, `matrix[i, j] == pairs[].weight` for every stored edge.

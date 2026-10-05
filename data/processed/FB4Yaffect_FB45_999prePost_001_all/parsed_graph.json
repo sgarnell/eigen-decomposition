@@ -1,11 +1,12 @@
 {
   "file_sha256": "c44c24f85756ed07acc1184565b19407df6fa4e0df8493c761f7d84957fa6b57",
   "metadata": {
+    "allow_self_loops": false,
     "cent_distribution": {
       "0.1": 112,
       "0.2": 1
     },
-    "created_utc": "2026-09-16T00:44:24Z",
+    "created_utc": "2026-10-02T20:39:27Z",
     "density": 0.1070638432364096,
     "filters": [],
     "n_hubs": 1355,

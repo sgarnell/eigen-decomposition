@@ -1,0 +1,14 @@
+// Phase 01 fixture -- mixed dataset: one ordinary hub plus one self-loop hub.
+// N1 -> N2 is a normal collapsed pair; "N3--N3" collapses to the self-loop (N3, N3).
+digraph G {
+	N1 -> "N1--N2" [label="Zscore = 0.8" color=blue penwidth=1.6]
+	"N1--N2" -> N2 [label="Zscore = 0.6" color=gold penwidth=1.2]
+	N3 -> "N3--N3" [label="Zscore = 0.5" color=red penwidth=1.0]
+	"N3--N3" -> N3 [label="Zscore = 0.4" color=red penwidth=1.0]
+	N1 [label="N1
+cent= 0.1" color=brown2 shape=circle]
+	N2 [label="N2
+cent= 0.2" color=brown2 shape=circle]
+	N3 [label="N3
+cent= 0.1" color=brown2 shape=circle]
+}

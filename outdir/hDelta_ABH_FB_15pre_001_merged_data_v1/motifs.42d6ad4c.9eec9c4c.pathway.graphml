@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:y="http://www.yworks.com/xml/graphml" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="d34" for="edge" attr.name="z_contribution" attr.type="double" />
+  <key id="d33" for="edge" attr.name="edge_color" attr.type="string" />
+  <key id="d32" for="edge" attr.name="edge_width" attr.type="double" />
+  <key id="d31" for="edge" attr.name="weight_ratio" attr.type="double" />
+  <key id="d30" for="edge" attr.name="intra_flag" attr.type="boolean" />
+  <key id="d29" for="edge" attr.name="topN_flag" attr.type="boolean" />
+  <key id="d28" for="edge" attr.name="threshold_flag" attr.type="boolean" />
+  <key id="d27" for="edge" attr.name="contribution_by_mode" attr.type="string" />
+  <key id="d26" for="edge" attr.name="polarity" attr.type="long" />
+  <key id="d25" for="edge" attr.name="abs_weight" attr.type="double" />
+  <key id="d24" for="edge" attr.name="weight" attr.type="double" />
+  <key id="d23" for="edge" attr.name="label" attr.type="string" />
+  <key id="d22" for="edge" attr.name="target_group" attr.type="string" />
+  <key id="d21" for="edge" attr.name="source_group" attr.type="string" />
+  <key id="d20" for="node" attr.name="coherence" attr.type="double" />
+  <key id="d19" for="node" attr.name="dominant_mode" attr.type="long" />
+  <key id="d18" for="node" attr.name="centroid" attr.type="string" />
+  <key id="d17" for="node" attr.name="is_singleton" attr.type="boolean" />
+  <key id="d16" for="node" attr.name="is_background" attr.type="boolean" />
+  <key id="d15" for="node" attr.name="region_composition" attr.type="string" />
+  <key id="d14" for="node" attr.name="size" attr.type="long" />
+  <key id="d13" for="node" attr.name="label" attr.type="string" />
+  <key id="d12" for="node" attr.name="group_id" attr.type="string" />
+  <key id="d11" for="graph" attr.name="pathway_hybrid_alpha" attr.type="double" />
+  <key id="d10" for="graph" attr.name="pathway_polarity_rule" attr.type="string" />
+  <key id="d9" for="graph" attr.name="pathway_unified_weight_rule" attr.type="string" />
+  <key id="d8" for="graph" attr.name="topN" attr.type="long" />
+  <key id="d7" for="graph" attr.name="threshold" attr.type="double" />
+  <key id="d6" for="graph" attr.name="pathway_weight_rule" attr.type="string" />
+  <key id="d5" for="graph" attr.name="pathway_source" attr.type="string" />
+  <key id="d4" for="graph" attr.name="edge_style" attr.type="string" />
+  <key id="d3" for="graph" attr.name="weight_normalization" attr.type="string" />
+  <key id="d2" for="graph" attr.name="abs_max" attr.type="double" />
+  <key id="d1" for="graph" attr.name="n_edges" attr.type="long" />
+  <key id="d0" for="graph" attr.name="n_nodes" attr.type="long" />
+  <key id="yfiles_edge_graphics" for="edge" yfiles.type="edgegraphics" /><key id="yfiles_node_graphics" for="node" yfiles.type="nodegraphics" /><graph edgedefault="directed">
+    <node id="G00">
+      <data key="d12">G00</data>
+      <data key="d13">G00</data>
+      <data key="d14">0</data>
+      <data key="d15">{}</data>
+      <data key="d16">True</data>
+      <data key="d17">False</data>
+      <data key="d18">[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="0.0" y="0.0" width="80.0" height="30.0" /><y:Fill color="#EEEEEE" transparent="false" /><y:BorderStyle color="#9E9E9E" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G00</y:NodeLabel><y:Shape type="rectangle" /></y:ShapeNode></data></node>
+    <node id="G01">
+      <data key="d12">G01</data>
+      <data key="d13">G01</data>
+      <data key="d14">7</data>
+      <data key="d15">{"FB4F_b": 1, "FB4I": 1, "FB4K": 1, "FB4P_a": 1, "FB4X": 1, "FB4Y(EB/NO1)": 1, "FB5X": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">1</data>
+      <data key="d18">[0.20098096130869614, 0.016979982333054842, 0.03410495109619345, 0.0253223751862997, 0.0835176997178009, 0.0057420693044898516, 0.05924384765217816, 0.037099148931478, 0.05012591899081288]</data>
+      <data key="d20">0.6881798605904264</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="249.0" y="0.0" width="132.0" height="129.2" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G01
+FB4F_b (1)
+FB4I (1)
+FB4K (1)
+FB4P_a (1)
+FB4X (1)
+FB4Y(EB/NO1) (1)
+FB5X (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G02">
+      <data key="d12">G02</data>
+      <data key="d13">G02</data>
+      <data key="d14">9</data>
+      <data key="d15">{"FB4L(PPM3-FB3/4-DAN)": 1, "FB4R": 1, "hDeltaB0": 1, "hDeltaB1": 1, "hDeltaB20": 1, "hDeltaB3": 1, "hDeltaB4": 1, "hDeltaB5": 1, "hDeltaB9": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">2</data>
+      <data key="d18">[0.006147363598049264, 0.24769373487137672, 0.0028446517734927197, 0.08062280971837768, 0.10327017507582412, 0.001751360336358824, 0.11340085716683847, 0.014028437517767044, 0.10398021821758309]</data>
+      <data key="d20">0.2723134903060507</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="498.0" y="0.0" width="188.0" height="158.0" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G02
+FB4L(PPM3-FB3/4-DAN) (1)
+FB4R (1)
+hDeltaB0 (1)
+hDeltaB1 (1)
+hDeltaB20 (1)
+hDeltaB3 (1)
+hDeltaB4 (1)
+hDeltaB5 (1)
+hDeltaB9 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G03">
+      <data key="d12">G03</data>
+      <data key="d13">G03</data>
+      <data key="d14">6</data>
+      <data key="d15">{"FB2F_b": 1, "FB5A": 1, "FB5D": 1, "FB5E": 1, "FB5K": 1, "FB5O": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">3</data>
+      <data key="d18">[0.009139375340973352, 0.0016599932963152616, 0.22609642545221423, 0.00019690431816737688, 0.0024944472406219563, 0.036211736700298015, 0.0058443728278312936, 0.003470469974446581, 0.0033853914876149672]</data>
+      <data key="d20">0.9291093066438734</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="747.0" y="0.0" width="90.0" height="114.8" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G03
+FB2F_b (1)
+FB5A (1)
+FB5D (1)
+FB5E (1)
+FB5K (1)
+FB5O (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G04">
+      <data key="d12">G04</data>
+      <data key="d13">G04</data>
+      <data key="d14">9</data>
+      <data key="d15">{"FB4B(NO2)": 1, "FB4C(NO2)": 1, "FB4G": 1, "FB4J": 1, "FB4N": 1, "hDeltaB2": 1, "hDeltaB42": 1, "hDeltaB7": 1, "hDeltaB8": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">4</data>
+      <data key="d18">[0.004307223163929016, 0.10097629822965057, 0.0015395303719361057, 0.2566654358970373, 0.09032460472424067, 0.0017240825741911983, 0.13380175012645196, 0.01725924204183454, 0.11441594288084087]</data>
+      <data key="d20">0.5606668083620678</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="0.0" y="-198.0" width="111.0" height="158.0" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G04
+FB4B(NO2) (1)
+FB4C(NO2) (1)
+FB4G (1)
+FB4J (1)
+FB4N (1)
+hDeltaB2 (1)
+hDeltaB42 (1)
+hDeltaB7 (1)
+hDeltaB8 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G05">
+      <data key="d12">G05</data>
+      <data key="d13">G05</data>
+      <data key="d14">4</data>
+      <data key="d15">{"FB4F_a": 1, "FB4M(PPM3-FB3/4-NO-DAN)": 1, "FB4Q_a": 1, "hDeltaA20": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">5</data>
+      <data key="d18">[0.12584212297204667, 0.09687572208925045, 0.015240129272151596, 0.09844973250850798, 0.3039402724326107, 0.008906235119500672, 0.23944777582627044, 0.10154661889394193, 0.1891353939361889]</data>
+      <data key="d20">0.619872842317774</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="249.0" y="-198.0" width="209.0" height="86.0" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G05
+FB4F_a (1)
+FB4M(PPM3-FB3/4-NO-DAN) (1)
+FB4Q_a (1)
+hDeltaA20 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G06">
+      <data key="d12">G06</data>
+      <data key="d13">G06</data>
+      <data key="d14">7</data>
+      <data key="d15">{"FB5H": 1, "FB5R": 1, "FB5S": 1, "FB5U": 1, "hDeltaH2": 1, "hDeltaH7": 1, "hDeltaH8": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">6</data>
+      <data key="d18">[0.01198342654129274, 0.0014969930125474974, 0.19332120950911266, 0.00037189003873955127, 0.0036920237929280683, 0.32329608684581856, 0.00486855651428729, 0.019283905891009274, 0.004076537486607139]</data>
+      <data key="d20">0.6952465343053943</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="498.0" y="-198.0" width="104.0" height="129.2" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G06
+FB5H (1)
+FB5R (1)
+FB5S (1)
+FB5U (1)
+hDeltaH2 (1)
+hDeltaH7 (1)
+hDeltaH8 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G07">
+      <data key="d12">G07</data>
+      <data key="d13">G07</data>
+      <data key="d14">4</data>
+      <data key="d15">{"FB3A": 1, "FB4D": 1, "hDeltaB31": 1, "hDeltaB6": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">7</data>
+      <data key="d18">[0.005987613452393301, 0.10403227939847483, 0.0019108581367800427, 0.18895785109383234, 0.17419338051505978, 0.002678920471183105, 0.2402567710401832, 0.028019639662864998, 0.14236840025140962]</data>
+      <data key="d20">0.4631944377634343</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="747.0" y="-198.0" width="111.0" height="86.0" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G07
+FB3A (1)
+FB4D (1)
+hDeltaB31 (1)
+hDeltaB6 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G08">
+      <data key="d12">G08</data>
+      <data key="d13">G08</data>
+      <data key="d14">5</data>
+      <data key="d15">{"FB4Z": 1, "hDeltaA31": 1, "hDeltaA4": 1, "hDeltaA7": 1, "hDeltaA8": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">8</data>
+      <data key="d18">[0.21856203015960413, 0.01001603847867177, 0.016141786433866302, 0.013564085692422883, 0.06612252850888314, 0.017781419050692034, 0.07110244909585035, 0.3333313847741374, 0.05025829091376954]</data>
+      <data key="d20">0.6672271410107509</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="0.0" y="-396.0" width="111.0" height="100.4" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G08
+FB4Z (1)
+hDeltaA31 (1)
+hDeltaA4 (1)
+hDeltaA7 (1)
+hDeltaA8 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G09">
+      <data key="d12">G09</data>
+      <data key="d13">G09</data>
+      <data key="d14">2</data>
+      <data key="d15">{"FB1H(NO2/3)": 1, "FB4P_b": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">9</data>
+      <data key="d18">[0.060245312483777624, 0.17679093727307943, 0.008842308803783935, 0.06910861627607764, 0.21285908398482617, 0.005698228823210794, 0.1743490577086072, 0.05555289408767204, 0.41361754842150333]</data>
+      <data key="d20">-0.4258922757882034</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="249.0" y="-396.0" width="125.0" height="57.2" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G09
+FB1H(NO2/3) (1)
+FB4P_b (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G10">
+      <data key="d12">G10</data>
+      <data key="d13">G10</data>
+      <data key="d14">6</data>
+      <data key="d15">{"hDeltaA0": 1, "hDeltaA1": 1, "hDeltaA2": 1, "hDeltaA3": 1, "hDeltaA42": 1, "hDeltaA5": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">1</data>
+      <data key="d18">[0.2297076539072952, 0.0092780064710369, 0.01715526536745175, 0.013735666125800322, 0.0467964083433253, 0.014871281360940425, 0.04070290800593207, 0.16308262106380278, 0.02424678074409027]</data>
+      <data key="d20">0.9310670921042031</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="498.0" y="-396.0" width="111.0" height="114.8" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G10
+hDeltaA0 (1)
+hDeltaA1 (1)
+hDeltaA2 (1)
+hDeltaA3 (1)
+hDeltaA42 (1)
+hDeltaA5 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <node id="G11">
+      <data key="d12">G11</data>
+      <data key="d13">G11</data>
+      <data key="d14">3</data>
+      <data key="d15">{"hDeltaH1": 1, "hDeltaH3": 1, "hDeltaH4": 1}</data>
+      <data key="d16">False</data>
+      <data key="d17">False</data>
+      <data key="d19">3</data>
+      <data key="d18">[0.02307088383260596, 0.0028763462719569193, 0.3390422286655954, 0.0002815427797634283, 0.0020362646700899894, 0.2139946147906119, 0.006383006053738951, 0.012783156328497339, 0.0030533020634847838]</data>
+      <data key="d20">0.9481051771327142</data>
+    <data key="yfiles_node_graphics"><y:ShapeNode><y:Geometry x="747.0" y="-396.0" width="104.0" height="71.6" /><y:Fill color="#E8EEF7" transparent="false" /><y:BorderStyle color="#37474F" type="line" width="1.0" /><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G11
+hDeltaH1 (1)
+hDeltaH3 (1)
+hDeltaH4 (1)</y:NodeLabel><y:Shape type="roundrectangle" /></y:ShapeNode></data></node>
+    <edge source="G01" target="G08">
+      <data key="d21">G01</data>
+      <data key="d22">G08</data>
+      <data key="d23">G01 → G08: -6.8710</data>
+      <data key="d24">-6.871015788639005</data>
+      <data key="d25">6.871015788639005</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 3.5341043931748506, "mode": 1, "rank": 1, "share": 0.9967807496151159, "signed_weight": -3.5341043931748506}, {"abs_weight": 0.00801334901038788, "mode": 8, "rank": 2, "share": 0.002260134717278792, "signed_weight": 0.00801334901038788}, {"abs_weight": 0.001615562398718529, "mode": 5, "rank": 3, "share": 0.00045566325147458007, "signed_weight": 0.001615562398718529}, {"abs_weight": 0.0010997205924889561, "mode": 9, "rank": 4, "share": 0.0003101720251006992, "signed_weight": -0.0010997205924889561}, {"abs_weight": 0.0002611531054561508, "mode": 3, "rank": 5, "share": 7.365724360707032e-05, "signed_weight": -0.0002611531054561508}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.5529494652795822</data>
+      <data key="d32">3.211797861118329</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-8.304726729123857</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="3.211798" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G01 → G08: -6.8710</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G01" target="G10">
+      <data key="d21">G01</data>
+      <data key="d22">G10</data>
+      <data key="d23">G01 → G10: -12.4261</data>
+      <data key="d24">-12.426118877183258</data>
+      <data key="d25">12.426118877183258</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 6.00096259440528, "mode": 1, "rank": 1, "share": 0.9985666130825409, "signed_weight": -6.00096259440528}, {"abs_weight": 0.0035379505786709703, "mode": 5, "rank": 2, "share": 0.0005887187715335209, "signed_weight": -0.0035379505786709703}, {"abs_weight": 0.0014639106228690711, "mode": 8, "rank": 3, "share": 0.00024359629801671724, "signed_weight": -0.0014639106228690711}, {"abs_weight": 0.0010068744990027135, "mode": 7, "rank": 4, "share": 0.00016754499673197218, "signed_weight": -0.0010068744990027135}, {"abs_weight": 0.000884593020762183, "mode": 4, "rank": 5, "share": 0.0001471972275785345, "signed_weight": -0.000884593020762183}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">1.0</data>
+      <data key="d32">5.0</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-15.1765210271149</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="5.000000" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G01 → G10: -12.4261</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G02" target="G04">
+      <data key="d21">G02</data>
+      <data key="d22">G04</data>
+      <data key="d23">G02 → G04: -1.6498</data>
+      <data key="d24">-1.6497841426305648</data>
+      <data key="d25">1.6497841426305648</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 0.7589526891760539, "mode": 2, "rank": 1, "share": 0.8409497129655599, "signed_weight": -0.7589526891760539}, {"abs_weight": 0.12858405786524182, "mode": 4, "rank": 2, "share": 0.14247624139933518, "signed_weight": 0.12858405786524182}, {"abs_weight": 0.0108172970919363, "mode": 7, "rank": 3, "share": 0.011985994666416996, "signed_weight": 0.0108172970919363}, {"abs_weight": 0.0024859679263069642, "mode": 9, "rank": 4, "share": 0.0027545511648941275, "signed_weight": 0.0024859679263069642}, {"abs_weight": 0.0011369479385236264, "mode": 5, "rank": 5, "share": 0.0012597834571167043, "signed_weight": 0.0011369479385236264}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.13276745208513058</data>
+      <data key="d32">1.5310698083405223</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-2.0930442863503194</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="1.531070" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G02 → G04: -1.6498</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G03" target="G06">
+      <data key="d21">G03</data>
+      <data key="d22">G06</data>
+      <data key="d23">G03 → G06: -3.6920</data>
+      <data key="d24">-3.692039025774809</data>
+      <data key="d25">3.692039025774809</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 0.7161064922488727, "mode": 3, "rank": 1, "share": 0.9777500068391994, "signed_weight": -0.7161064922488727}, {"abs_weight": 0.008580712692308782, "mode": 1, "rank": 2, "share": 0.011715843920424008, "signed_weight": -0.008580712692308782}, {"abs_weight": 0.007487773978609249, "mode": 6, "rank": 3, "share": 0.010223578668870947, "signed_weight": 0.007487773978609249}, {"abs_weight": 0.00010902092711098027, "mode": 8, "rank": 4, "share": 0.00014885385537229728, "signed_weight": -0.00010902092711098027}, {"abs_weight": 6.151360859847315e-05, "mode": 2, "rank": 5, "share": 8.398880875801143e-05, "signed_weight": -6.151360859847315e-05}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.29711924232063336</data>
+      <data key="d32">2.1884769692825334</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-4.966897471621266</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="2.188477" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G03 → G06: -3.6920</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G03" target="G11">
+      <data key="d21">G03</data>
+      <data key="d22">G11</data>
+      <data key="d23">G03 → G11: -4.7640</data>
+      <data key="d24">-4.763996202763993</data>
+      <data key="d25">4.763996202763993</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 0.9104736083858677, "mode": 3, "rank": 1, "share": 0.9863671686201363, "signed_weight": -0.9104736083858677}, {"abs_weight": 0.011729883204945267, "mode": 1, "rank": 2, "share": 0.012707640922858343, "signed_weight": -0.011729883204945267}, {"abs_weight": 0.000702730006903281, "mode": 6, "rank": 3, "share": 0.0007613068636250184, "signed_weight": -0.000702730006903281}, {"abs_weight": 8.378275119210405e-05, "mode": 2, "rank": 4, "share": 9.076655743934221e-05, "signed_weight": -8.378275119210405e-05}, {"abs_weight": 5.0820337369748116e-05, "mode": 7, "rank": 5, "share": 5.505652422873308e-05, "signed_weight": -5.0820337369748116e-05}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.3833856934615043</data>
+      <data key="d32">2.5335427738460172</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-6.4101128459307954</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="2.533543" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G03 → G11: -4.7640</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G05" target="G10">
+      <data key="d21">G05</data>
+      <data key="d22">G10</data>
+      <data key="d23">G05 → G10: -2.1496</data>
+      <data key="d24">-2.1496407479066306</data>
+      <data key="d25">2.1496407479066306</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 0.8606651872766151, "mode": 1, "rank": 1, "share": 0.9589241370621832, "signed_weight": -0.8606651872766151}, {"abs_weight": 0.015314076274046122, "mode": 5, "rank": 2, "share": 0.017062427518953902, "signed_weight": -0.015314076274046122}, {"abs_weight": 0.007523619933344497, "mode": 2, "rank": 3, "share": 0.008382563694710552, "signed_weight": -0.007523619933344497}, {"abs_weight": 0.003834569591277891, "mode": 8, "rank": 4, "share": 0.0042723481682305385, "signed_weight": -0.003834569591277891}, {"abs_weight": 0.003819411686952727, "mode": 7, "rank": 5, "share": 0.004255459742232186, "signed_weight": -0.003819411686952727}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.1729937375582157</data>
+      <data key="d32">1.6919749502328627</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-2.68724335359971</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="1.691975" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G05 → G10: -2.1496</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G06" target="G11">
+      <data key="d21">G06</data>
+      <data key="d22">G11</data>
+      <data key="d23">G06 → G11: -2.1986</data>
+      <data key="d24">-2.1986419783843294</data>
+      <data key="d25">2.1986419783843294</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 0.40765064171961907, "mode": 3, "rank": 1, "share": 0.9540235775131662, "signed_weight": -0.40765064171961907}, {"abs_weight": 0.012160771209494468, "mode": 6, "rank": 2, "share": 0.028459816488110953, "signed_weight": -0.012160771209494468}, {"abs_weight": 0.007393840889014398, "mode": 1, "rank": 3, "share": 0.017303783717216116, "signed_weight": -0.007393840889014398}, {"abs_weight": 3.7458644963588944e-05, "mode": 2, "rank": 4, "share": 8.766435476762498e-05, "signed_weight": -3.7458644963588944e-05}, {"abs_weight": 3.5192392377151866e-05, "mode": 7, "rank": 5, "share": 8.236065061806e-05, "signed_weight": -3.5192392377151866e-05}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.1769371434568728</data>
+      <data key="d32">1.7077485738274913</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-2.957804333414953</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="1.707749" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G06 → G11: -2.1986</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G08" target="G10">
+      <data key="d21">G08</data>
+      <data key="d22">G10</data>
+      <data key="d23">G08 → G10: -2.7605</data>
+      <data key="d24">-2.760525303958441</data>
+      <data key="d25">2.760525303958441</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 1.3526296487282545, "mode": 1, "rank": 1, "share": 0.9890640807196985, "signed_weight": -1.3526296487282545}, {"abs_weight": 0.008189797307096566, "mode": 8, "rank": 2, "share": 0.0059885086449494775, "signed_weight": -0.008189797307096566}, {"abs_weight": 0.0023098771938380187, "mode": 3, "rank": 3, "share": 0.0016890185465377005, "signed_weight": -0.0023098771938380187}, {"abs_weight": 0.002114919059049094, "mode": 5, "rank": 4, "share": 0.001546462091010402, "signed_weight": 0.002114919059049094}, {"abs_weight": 0.001861208416438845, "mode": 7, "rank": 5, "share": 0.001360944877382828, "signed_weight": 0.001861208416438845}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.22215506959516507</data>
+      <data key="d32">1.8886202783806603</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-3.361219457870197</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="1.888620" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G08 → G10: -2.7605</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G09" target="G02">
+      <data key="d21">G09</data>
+      <data key="d22">G02</data>
+      <data key="d23">G09 → G02: -1.6760</data>
+      <data key="d24">-1.6760371952332807</data>
+      <data key="d25">1.6760371952332807</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 0.48856071102769794, "mode": 2, "rank": 1, "share": 0.9405958226950714, "signed_weight": -0.48856071102769794}, {"abs_weight": 0.023295668820149724, "mode": 5, "rank": 2, "share": 0.04484971526471847, "signed_weight": 0.023295668820149724}, {"abs_weight": 0.0037053883791273515, "mode": 1, "rank": 3, "share": 0.007133755851015326, "signed_weight": -0.0037053883791273515}, {"abs_weight": 0.003515101835097893, "mode": 9, "rank": 4, "share": 0.006767408896810399, "signed_weight": -0.003515101835097893}, {"abs_weight": 0.0001944569218331795, "mode": 3, "rank": 5, "share": 0.00037437592553376896, "signed_weight": -0.0001944569218331795}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.13488018357130052</data>
+      <data key="d32">1.539520734285202</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-2.1917987026694195</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="1.539521" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G09 → G02: -1.6760</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G09" target="G04">
+      <data key="d21">G09</data>
+      <data key="d22">G04</data>
+      <data key="d23">G09 → G04: -1.2722</data>
+      <data key="d24">-1.272165107803664</data>
+      <data key="d25">1.272165107803664</data>
+      <data key="d26">-1</data>
+      <data key="d27">[{"abs_weight": 0.2898518786055607, "mode": 2, "rank": 1, "share": 0.9441328347069073, "signed_weight": -0.2898518786055607}, {"abs_weight": 0.005172630550942899, "mode": 4, "rank": 2, "share": 0.016848779343600843, "signed_weight": -0.005172630550942899}, {"abs_weight": 0.004698141291214065, "mode": 9, "rank": 3, "share": 0.015303228243566776, "signed_weight": 0.004698141291214065}, {"abs_weight": 0.0038790569164987012, "mode": 1, "rank": 4, "share": 0.012635229484046866, "signed_weight": -0.0038790569164987012}, {"abs_weight": 0.0031153050841527686, "mode": 5, "rank": 5, "share": 0.010147465092267188, "signed_weight": -0.0031153050841527686}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.10237831461113764</data>
+      <data key="d32">1.4095132584445507</data>
+      <data key="d33">#C62828</data>
+      <data key="d34">-1.6899707677106748</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#C62828" type="line" width="1.409513" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G09 → G04: -1.2722</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <edge source="G11" target="G06">
+      <data key="d21">G11</data>
+      <data key="d22">G06</data>
+      <data key="d23">G11 → G06: +1.4386</data>
+      <data key="d24">1.4385595467628054</data>
+      <data key="d25">1.4385595467628054</data>
+      <data key="d26">1</data>
+      <data key="d27">[{"abs_weight": 0.06788145581817064, "mode": 6, "rank": 1, "share": 0.6866794564453622, "signed_weight": 0.06788145581817064}, {"abs_weight": 0.030532077864590484, "mode": 3, "rank": 2, "share": 0.3088582939111379, "signed_weight": 0.030532077864590484}, {"abs_weight": 0.00022595426931423866, "mode": 1, "rank": 3, "share": 0.0022857222633795864, "signed_weight": 0.00022595426931423866}, {"abs_weight": 0.00019839405143720962, "mode": 8, "rank": 4, "share": 0.0020069268957315024, "signed_weight": 0.00019839405143720962}, {"abs_weight": 9.43307926375759e-06, "mode": 5, "rank": 5, "share": 9.542373043374196e-05, "signed_weight": 9.43307926375759e-06}]</data>
+      <data key="d28">True</data>
+      <data key="d29">True</data>
+      <data key="d30">False</data>
+      <data key="d31">0.11576901532821138</data>
+      <data key="d32">1.4630760613128455</data>
+      <data key="d33">#1565C0</data>
+      <data key="d34">2.0127187891755804</data>
+    <data key="yfiles_edge_graphics"><y:PolyLineEdge><y:LineStyle color="#1565C0" type="line" width="1.463076" /><y:Arrows source="none" target="standard" /><y:EdgeLabel alignment="center" fontFamily="Dialog" fontSize="12" hasBackgroundColor="false" hasLineColor="false" horizontalTextPosition="center" verticalTextPosition="center" visible="true">G11 → G06: +1.4386</y:EdgeLabel></y:PolyLineEdge></data></edge>
+    <data key="d0">12</data>
+    <data key="d1">11</data>
+    <data key="d2">12.426118877183258</data>
+    <data key="d3">abs-max</data>
+    <data key="d4">{"color_by_polarity": {"-1": "#C62828", "0": "#757575", "1": "#1565C0"}, "width_formula": "1.0 + 4.0 * min(1.0, abs_weight / abs_max)", "width_max": 5.0, "width_min": 1.0}</data>
+    <data key="d5">hybrid</data>
+    <data key="d6">evr</data>
+    <data key="d7">0.1</data>
+    <data key="d8">5</data>
+    <data key="d9">hybrid</data>
+    <data key="d10">sign</data>
+    <data key="d11">0.3</data>
+  </graph>
+</graphml>

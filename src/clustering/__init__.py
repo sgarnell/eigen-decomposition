@@ -20,7 +20,19 @@ mirroring :mod:`src.parsing`, :mod:`src.matrices` and :mod:`src.spectral`):
 * :func:`derive_region` / :func:`load_anatomy` / :func:`load_node_metadata` -- the
   region labels and the optional ``parsed_graph.json`` enrichment.
 * :func:`write_artifact_set` -- persist the requested artifact set.
+* :func:`write_graphml_pathway` -- write yEd-facing GraphML with readable edge labels
+  and deterministic yFiles weight/polarity edge styling plus multi-line node labels
+  (group id and region composition) and role-based node fill/border/shape.
+* :func:`resolve_unified_weight` / :func:`resolve_edge_polarity` -- the configurable
+  unified-weight transform (signed/abs/positive/negative/mode-only/matrix-only/hybrid,
+  with a blend alpha) and the edge-polarity rule (sign/post_z/pre_z/delta);
+  :func:`needs_pathway_matrix` reports when the selected rules require Phase 02.
 * :func:`main` -- the command line interface.
+
+Phase 04 Update B adds :mod:`src.clustering.motif_analysis`, a read-only scorer that ranks
+the pathway artifacts of one run directory by the unified S-score
+(``execution-plans/04_update_a.md``); its CLI is ``python -m
+src.clustering.motif_analysis``.
 """
 
 from __future__ import annotations
@@ -42,6 +54,8 @@ if TYPE_CHECKING:  # pragma: no cover - import-time only for type checkers
         CODE_PARTITION,
         CODE_BACKGROUND,
         CODE_PATHWAY_SKIPPED,
+        CODE_POLARITY_RULE,
+        CODE_WEIGHT_RULE,
         CODE_SINGLETON,
         CODE_ZERO_VECTOR,
         CODE_PAYLOAD_SCHEMA,
@@ -49,6 +63,9 @@ if TYPE_CHECKING:  # pragma: no cover - import-time only for type checkers
         DEFAULT_ABSOLUTE_THRESHOLD,
         DEFAULT_MAX_MEMBERS,
         DEFAULT_MIN_MEMBERS,
+        DEFAULT_PATHWAY_HYBRID_ALPHA,
+        DEFAULT_PATHWAY_POLARITY_RULE,
+        DEFAULT_PATHWAY_WEIGHT_RULE,
         DEFAULT_PARTICIPATION,
         DEFAULT_PARTICIPATION_THRESHOLD,
         DEFAULT_QUANTILE,
@@ -74,9 +91,11 @@ if TYPE_CHECKING:  # pragma: no cover - import-time only for type checkers
         OCCURRENCE_KEYS,
         PARTICIPATIONS,
         PATHWAY_KEYS,
+        PATHWAY_POLARITY_RULES,
         PATHWAY_THRESHOLD_SWEEP,
         PATHWAY_TOP_MODES,
         PATHWAY_WEIGHT_NORMALIZATION,
+        PATHWAY_WEIGHT_RULES,
         PROVENANCE_KEYS,
         SAVE_DATA_KEYS,
         STAGE,
@@ -134,11 +153,14 @@ if TYPE_CHECKING:  # pragma: no cover - import-time only for type checkers
         motif_membership,
         motif_statistics,
         motif_thresholds,
+        needs_pathway_matrix,
         pathway_matrix_path,
         recurrence_table,
         render_statistics,
         render_summary_box,
+        resolve_edge_polarity,
         resolve_inputs,
+        resolve_unified_weight,
         save_data_payload,
         sidecar_path,
         validate_motif_payload_schema,
@@ -148,8 +170,86 @@ if TYPE_CHECKING:  # pragma: no cover - import-time only for type checkers
         write_npz_atomic,
         write_sidecar,
     )
+    from src.clustering.motif_analysis import (
+        CODE_SCORE_CONFIG,
+        CODE_SCORE_EMPTY,
+        CODE_SCORE_INPUT,
+        CODE_SCORE_MATRIX,
+        CODE_SCORE_WRITE,
+        DEFAULT_W_BALANCE,
+        DEFAULT_W_CONCENTRATION,
+        DEFAULT_W_DISAGREEMENT,
+        DEFAULT_W_ENTROPY,
+        PathwayScore,
+        SCORE_STEM,
+        SCORE_VERSION,
+        ScoreConfig,
+        ScoreValidationError,
+        build_pathway_matrix_contributions,
+        discover_motif_artifacts,
+        load_motif_artifact,
+        matrix_artifact_candidates,
+        matrix_artifact_path,
+        mode_matrix_disagreement,
+        polarity_balance,
+        polarity_entropy,
+        rank_records,
+        recover_mode_contribution,
+        render_ranking,
+        render_score_table,
+        s_score,
+        score_directory,
+        score_pathway,
+        weight_concentration_term,
+        write_summary,
+    )
 
 _MODULE_NAME = "src.clustering.functional_motifs"
+_ANALYSIS_MODULE_NAME = "src.clustering.motif_analysis"
+
+#: The curated subset of :mod:`src.clustering.motif_analysis` public names re-exported here
+#: (Phase 04 Update B).  Names that also exist in
+#: :mod:`src.clustering.functional_motifs` -- ``main``, ``build_argument_parser``,
+#: ``render_statistics``, ``PHASE``, ``GENERATOR`` and ``MATRIX_INPUT_PREFIX`` -- always
+#: resolve to that module, so use the qualified module path
+#: (``src.clustering.motif_analysis``) for the scorer's CLI.  ``MOTIF_STEM`` /
+#: ``MOTIF_DATA_SUFFIX`` are likewise reached through that module.
+_ANALYSIS_NAMES = frozenset(
+    {
+        "CODE_SCORE_CONFIG",
+        "CODE_SCORE_EMPTY",
+        "CODE_SCORE_INPUT",
+        "CODE_SCORE_MATRIX",
+        "CODE_SCORE_WRITE",
+        "CSV_COLUMNS",
+        "DEFAULT_W_BALANCE",
+        "DEFAULT_W_CONCENTRATION",
+        "DEFAULT_W_DISAGREEMENT",
+        "DEFAULT_W_ENTROPY",
+        "PathwayScore",
+        "SCORE_STEM",
+        "SCORE_VERSION",
+        "ScoreConfig",
+        "ScoreValidationError",
+        "build_pathway_matrix_contributions",
+        "discover_motif_artifacts",
+        "load_motif_artifact",
+        "matrix_artifact_candidates",
+        "matrix_artifact_path",
+        "mode_matrix_disagreement",
+        "polarity_balance",
+        "polarity_entropy",
+        "rank_records",
+        "recover_mode_contribution",
+        "render_ranking",
+        "render_score_table",
+        "s_score",
+        "score_directory",
+        "score_pathway",
+        "weight_concentration_term",
+        "write_summary",
+    }
+)
 
 __all__ = [
     "CANONICAL_STEM",
@@ -164,6 +264,8 @@ __all__ = [
     "CODE_PARTITION",
     "CODE_BACKGROUND",
     "CODE_PATHWAY_SKIPPED",
+    "CODE_POLARITY_RULE",
+    "CODE_WEIGHT_RULE",
     "CODE_SINGLETON",
     "CODE_ZERO_VECTOR",
     "CODE_PAYLOAD_SCHEMA",
@@ -171,6 +273,9 @@ __all__ = [
     "DEFAULT_ABSOLUTE_THRESHOLD",
     "DEFAULT_MAX_MEMBERS",
     "DEFAULT_MIN_MEMBERS",
+    "DEFAULT_PATHWAY_HYBRID_ALPHA",
+    "DEFAULT_PATHWAY_POLARITY_RULE",
+    "DEFAULT_PATHWAY_WEIGHT_RULE",
     "DEFAULT_PARTICIPATION",
     "DEFAULT_PARTICIPATION_THRESHOLD",
     "DEFAULT_QUANTILE",
@@ -196,9 +301,11 @@ __all__ = [
     "OCCURRENCE_KEYS",
     "PARTICIPATIONS",
     "PATHWAY_KEYS",
+    "PATHWAY_POLARITY_RULES",
     "PATHWAY_THRESHOLD_SWEEP",
     "PATHWAY_TOP_MODES",
     "PATHWAY_WEIGHT_NORMALIZATION",
+    "PATHWAY_WEIGHT_RULES",
     "PROVENANCE_KEYS",
     "SAVE_DATA_KEYS",
     "STAGE",
@@ -256,11 +363,14 @@ __all__ = [
     "motif_membership",
     "motif_statistics",
     "motif_thresholds",
+    "needs_pathway_matrix",
     "pathway_matrix_path",
     "recurrence_table",
     "render_statistics",
     "render_summary_box",
+    "resolve_edge_polarity",
     "resolve_inputs",
+    "resolve_unified_weight",
     "save_data_payload",
     "sidecar_path",
     "validate_motif_payload_schema",
@@ -269,11 +379,47 @@ __all__ = [
     "write_graphml_pathway",
     "write_npz_atomic",
     "write_sidecar",
+    # Phase 04 Update B -- S-score (src.clustering.motif_analysis)
+    "CODE_SCORE_CONFIG",
+    "CODE_SCORE_EMPTY",
+    "CODE_SCORE_INPUT",
+    "CODE_SCORE_MATRIX",
+    "CODE_SCORE_WRITE",
+    "CSV_COLUMNS",
+    "DEFAULT_W_BALANCE",
+    "DEFAULT_W_CONCENTRATION",
+    "DEFAULT_W_DISAGREEMENT",
+    "DEFAULT_W_ENTROPY",
+    "PathwayScore",
+    "SCORE_STEM",
+    "SCORE_VERSION",
+    "ScoreConfig",
+    "ScoreValidationError",
+    "build_pathway_matrix_contributions",
+    "discover_motif_artifacts",
+    "load_motif_artifact",
+    "matrix_artifact_candidates",
+    "matrix_artifact_path",
+    "mode_matrix_disagreement",
+    "polarity_balance",
+    "polarity_entropy",
+    "rank_records",
+    "recover_mode_contribution",
+    "render_ranking",
+    "render_score_table",
+    "s_score",
+    "score_directory",
+    "score_pathway",
+    "weight_concentration_term",
+    "write_summary",
 ]
 
 
 def __getattr__(name: str) -> Any:
-    """Resolve the public names from :mod:`src.clustering.functional_motifs` on demand."""
+    """Resolve the public names from the owning module on demand."""
+    if name in _ANALYSIS_NAMES:
+        module = importlib.import_module(_ANALYSIS_MODULE_NAME)
+        return getattr(module, name)
     if name in __all__:
         module = importlib.import_module(_MODULE_NAME)
         return getattr(module, name)

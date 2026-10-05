@@ -31,7 +31,11 @@ CLI
         --input data/raw_dot/FB4Yaffect_FB45_999prePost_001_all.gv \\
         --outdir data/processed \\
         [--glob '*.gv'] [--strict] [--min-pre X] [--min-post X] \\
-        [--top-k N] [--dry-run] [--log-level INFO]
+        [--top-k N] [--allow-self-loops] [--dry-run] [--log-level INFO]
+
+A hub named ``"A--A"`` collapses to the self-loop ``(A, A)``.  Self-loops are
+validation *errors* by default; ``--allow-self-loops`` downgrades them to
+warnings and keeps them in the ``pairs`` list.
 """
 
 from __future__ import annotations
@@ -156,7 +160,7 @@ METADATA_KEYS = frozenset(
     {
         "n_neurons", "n_hubs", "n_raw_edges", "n_pairs", "density", "reciprocity",
         "pre_stats", "post_stats", "cent_distribution", "filters", "parser",
-        "parser_version", "created_utc",
+        "parser_version", "created_utc", "allow_self_loops",
     }
 )
 
@@ -775,6 +779,8 @@ def _validate_metadata_schema(metadata: Any) -> list[str]:
             problems.append(f"metadata.{key}: expected an integer")
     if not _is_number(metadata["density"]):
         problems.append("metadata.density: expected a number")
+    if not isinstance(metadata["allow_self_loops"], bool):
+        problems.append("metadata.allow_self_loops: expected a boolean")
 
     for key in ("pre_stats", "post_stats"):
         stats = metadata[key]
@@ -833,6 +839,7 @@ def build_parsed_graph(
     min_pre: float | None = None,
     min_post: float | None = None,
     top_k: int | None = None,
+    allow_self_loops: bool = False,
     now: Any = None,
 ) -> tuple[ParsedGraph, ValidationReport]:
     """Parse *source_path* and return ``(ParsedGraph, ValidationReport)``.
@@ -848,7 +855,11 @@ def build_parsed_graph(
     * ``raw_edges`` is complete and unfiltered -- the optional filters only
       affect ``pairs`` (and, through them, degrees/strengths/density);
     * ``neurons`` keeps every real neuron of the file, even if a filter removed
-      all of its pairs.
+      all of its pairs;
+    * a hub ``"A--A"`` collapses to the self-loop ``(A, A)``: by default that is
+      a ``self_loop`` *error*, while *allow_self_loops* downgrades it to a
+      warning and keeps the pair (``metadata.allow_self_loops`` records the
+      choice).
     """
     path = Path(source_path)
     if not path.is_file():
@@ -914,7 +925,16 @@ def build_parsed_graph(
                 f"({pre_edge.src!r} -> {post_edge.dst!r}, expected {expected_name!r})",
             )
         if pair.source == pair.target:
-            report.error(CODE_SELF_LOOP, f"hub {name!r} encodes the self-loop {pair.source!r}")
+            if allow_self_loops:
+                report.warning(
+                    CODE_SELF_LOOP,
+                    f"hub {name!r} encodes the self-loop {pair.source!r}; kept because "
+                    "--allow-self-loops is set",
+                )
+            else:
+                report.error(
+                    CODE_SELF_LOOP, f"hub {name!r} encodes the self-loop {pair.source!r}"
+                )
         key = (pair.source, pair.target)
         if key in seen_pairs:
             report.error(
@@ -990,6 +1010,7 @@ def build_parsed_graph(
         "parser": DEFAULT_PARSER_NAME,
         "parser_version": pydot_version(),
         "created_utc": utc_timestamp(now),
+        "allow_self_loops": bool(allow_self_loops),
     }
 
     parsed = ParsedGraph(
@@ -1012,6 +1033,7 @@ def parse_graphviz_file(
     min_pre: float | None = None,
     min_post: float | None = None,
     top_k: int | None = None,
+    allow_self_loops: bool = False,
     now: Any = None,
 ) -> ParsedGraph:
     """Parse *source_path* into a :class:`ParsedGraph`.
@@ -1026,6 +1048,7 @@ def parse_graphviz_file(
         min_pre=min_pre,
         min_post=min_post,
         top_k=top_k,
+        allow_self_loops=allow_self_loops,
         now=now,
     )
     if report.has_errors or (strict and report.warnings):
@@ -1130,6 +1153,14 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help="keep only the top-k pairs ranked by pre_z + post_z",
     )
     parser.add_argument(
+        "--allow-self-loops",
+        action="store_true",
+        help=(
+            "allow hubs of the form 'A--A': self-loops become warnings instead of "
+            "errors and are kept in the collapsed pair list"
+        ),
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="validate and report without writing any artifact",
@@ -1169,6 +1200,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 min_pre=args.min_pre,
                 min_post=args.min_post,
                 top_k=args.top_k,
+                allow_self_loops=args.allow_self_loops,
             )
         except GraphvizValidationError as exc:
             LOGGER.error("%s: %s", source.name, exc)

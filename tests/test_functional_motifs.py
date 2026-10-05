@@ -22,22 +22,36 @@ from src.clustering.functional_motifs import (
     CODE_MATRIX_MISSING,
     CODE_MODE_WEIGHTS,
     CODE_PATHWAY_SKIPPED,
+    CODE_POLARITY_RULE,
+    CODE_WEIGHT_RULE,
     DEFAULT_MAX_MEMBERS,
     DEFAULT_MIN_MEMBERS,
     DEFAULT_PARTICIPATION,
+    DEFAULT_PATHWAY_HYBRID_ALPHA,
+    DEFAULT_PATHWAY_POLARITY_RULE,
     DEFAULT_PATHWAY_WEIGHT,
+    DEFAULT_PATHWAY_WEIGHT_RULE,
     DEFAULT_RELATIVE_THRESHOLD,
     DEFAULT_THRESHOLD_METHOD,
     EDGE_KEYS,
     GRAPHML_EDGE_KEYS,
     GRAPHML_GRAPH_KEYS,
     GRAPHML_NODE_KEYS,
+    GRAPHML_NODE_CHAR_WIDTH,
+    GRAPHML_NODE_FONT_SIZE,
+    GRAPHML_NODE_LINE_SPACING,
+    GRAPHML_NODE_MIN_HEIGHT,
+    GRAPHML_NODE_MIN_WIDTH,
+    GRAPHML_NODE_PADDING_X,
+    GRAPHML_NODE_PADDING_Y,
     LINK_CLASSES,
     MOTIF_CONFIG_FIELDS,
     NEURON_PARTICIPATION_KEYS,
     NODE_KEYS,
     PATHWAY_KEYS,
+    PATHWAY_POLARITY_RULES,
     PATHWAY_TOP_MODES,
+    PATHWAY_WEIGHT_RULES,
     SAVE_DATA_KEYS,
     STAGE,
     TOP_MODE_KEYS,
@@ -78,11 +92,15 @@ from src.clustering.functional_motifs import (
     motif_membership,
     motif_statistics,
     motif_thresholds,
+    needs_pathway_matrix,
+    node_geometry_size,
     pathway_matrix_path,
     region_composition,
     split_large_groups,
     recurrence_table,
     render_statistics,
+    resolve_edge_polarity,
+    resolve_unified_weight,
     render_summary_box,
     resolve_inputs,
     save_data_payload,
@@ -92,6 +110,10 @@ from src.clustering.functional_motifs import (
     write_artifact_set,
     write_graphml_pathway,
     write_npz_atomic,
+    # private label helper: the yFiles node label text is only reachable through the
+    # writer for valid payloads, so its malformed / missing-composition fallbacks are
+    # unit-tested directly.
+    _graphml_node_label,
 )
 from src.spectral.spectral_decomposition import (
     DEFAULT_DEGENERATE_TOL,
@@ -591,10 +613,13 @@ def test_families_are_serialized_with_occurrences(synthetic_spectrum) -> None:
 
 # ---------------------------------------------------------------------------
 # The builder, config and provenance
-def test_config_has_26_hashed_fields() -> None:
-    assert len(MOTIF_CONFIG_FIELDS) == 26
-    assert len(set(MOTIF_CONFIG_FIELDS)) == 26
+def test_config_has_29_hashed_fields() -> None:
+    assert len(MOTIF_CONFIG_FIELDS) == 29
+    assert len(set(MOTIF_CONFIG_FIELDS)) == 29
     assert "participation" in MOTIF_CONFIG_FIELDS and "diagram_layout" in MOTIF_CONFIG_FIELDS
+    assert "pathway_weight_rule" in MOTIF_CONFIG_FIELDS
+    assert "pathway_polarity_rule" in MOTIF_CONFIG_FIELDS
+    assert "pathway_hybrid_alpha" in MOTIF_CONFIG_FIELDS
 
 
 def test_config_hash_is_stable_and_default_aware() -> None:
@@ -1432,11 +1457,17 @@ def test_04d_build_pathway_structure(synthetic_spectrum) -> None:
         assert sum(entry["share"] for entry in edge["top_modes"]) <= 1.0 + 1e-12
     assert set(diagnostics) == {
         "abs_max",
+        "abs_max_matrix",
+        "abs_max_mode",
+        "abs_max_raw",
         "cutoff",
+        "hybrid_alpha",
         "n_candidates",
-        "threshold_sweep",
         "per_source_counts",
+        "polarity_rule",
         "mode_weights",
+        "threshold_sweep",
+        "weight_rule",
         "z_contributions",
     }
     assert np.isclose(sum(abs(value) for value in diagnostics["mode_weights"]), 1.0)
@@ -1603,12 +1634,34 @@ def test_04d_graphml_metadata_helpers() -> None:
             {"mode": 1, "rank": 1, "share": 1.0, "signed_weight": -1.5, "abs_weight": 1.5}
         ],
     }
-    plain = graphml_edge_metadata(edge)
+    plain = graphml_edge_metadata(edge, abs_max=1.5)
     assert set(plain) <= set(GRAPHML_EDGE_KEYS)
     assert plain["threshold_flag"] is True and plain["topN_flag"] is True
     assert plain["intra_flag"] is False and plain["polarity"] == -1
+    assert plain["label"] == "G01 \u2192 G02: -1.5000"
+    assert plain["weight_ratio"] == 1.0 and plain["edge_width"] == 5.0
+    assert plain["edge_color"] == "#C62828"
     assert "z_contribution" not in plain
     assert graphml_edge_metadata(edge, z_contribution=0.42)["z_contribution"] == 0.42
+    # abs_max is optional: a direct call without it stays valid (minimum width)
+    default = graphml_edge_metadata(edge)
+    assert default["weight_ratio"] == 0.0 and default["edge_width"] == 1.0
+    # numeric metadata stays numeric; only the per-mode breakdown is JSON-encoded
+    assert isinstance(plain["weight"], float) and isinstance(plain["abs_weight"], float)
+    assert isinstance(plain["polarity"], int)
+    assert isinstance(json.loads(plain["contribution_by_mode"]), list)
+    positive = graphml_edge_metadata(
+        {**edge, "weight": 0.5, "abs_weight": 0.5, "polarity": 1}, abs_max=1.0
+    )
+    assert positive["label"] == "G01 \u2192 G02: +0.5000"
+    assert positive["weight_ratio"] == 0.5 and positive["edge_width"] == 3.0
+    assert positive["edge_color"] == "#1565C0"
+    neutral = graphml_edge_metadata(
+        {**edge, "weight": 0.0, "abs_weight": 0.0, "polarity": 0}, abs_max=0.0
+    )
+    assert neutral["label"] == "G01 \u2192 G02: 0.0000"
+    assert neutral["weight_ratio"] == 0.0 and neutral["edge_width"] == 1.0
+    assert neutral["edge_color"] == "#757575"
 
 
 def test_04d_graphml_round_trips(synthetic_spectrum, tmp_path: Path) -> None:
@@ -1636,9 +1689,35 @@ def test_04d_graphml_round_trips(synthetic_spectrum, tmp_path: Path) -> None:
     assert graph.graph["threshold"] == analysis.config.pathway_edge_threshold
     assert graph.graph["topN"] == analysis.config.pathway_top_edges
     assert set(graph.graph) - {"node_default", "edge_default"} <= set(GRAPHML_GRAPH_KEYS)
+    assert graph.graph["abs_max"] == analysis.pathway["abs_max"]
+    edge_style = json.loads(graph.graph["edge_style"])
+    assert edge_style["width_min"] == 1.0 and edge_style["width_max"] == 5.0
+    assert edge_style["color_by_polarity"] == {
+        "-1": "#C62828",
+        "0": "#757575",
+        "1": "#1565C0",
+    }
     for node_id, attributes in graph.nodes(data=True):
-        assert set(attributes) <= set(GRAPHML_NODE_KEYS)
+        # x/y/shape_type are derived by NetworkX from the yFiles nodegraphics block, not
+        # written by the writer as scalar keys.
+        derived = {"x", "y", "shape_type"}
+        assert set(attributes) - derived <= set(GRAPHML_NODE_KEYS)
+        assert set(attributes) & derived <= derived
+        assert attributes["shape_type"] in {"rectangle", "roundrectangle", "ellipse"}
         assert attributes["group_id"] == node_id
+        # NetworkX's reader overrides the declared scalar ``label`` attribute with the
+        # yFiles ``NodeLabel`` text, which is now multi-line (group id + region
+        # composition).
+        lines = attributes["label"].split("\n")
+        assert lines[0] == node_id
+        assert lines[1:] == [
+            f"{cell} ({count})"
+            for cell, count in sorted(
+                json.loads(attributes["region_composition"]).items(),
+                key=lambda item: (-item[1], item[0]),
+            )
+        ]
+        assert attributes["label"].strip() and attributes["label"] != "None"
     for source, target, attributes in graph.edges(data=True):
         assert set(attributes) <= set(GRAPHML_EDGE_KEYS)
         assert attributes["source_group"] == source and attributes["target_group"] == target
@@ -1648,6 +1727,17 @@ def test_04d_graphml_round_trips(synthetic_spectrum, tmp_path: Path) -> None:
         assert attributes["intra_flag"] == (source == target)
         assert isinstance(json.loads(attributes["contribution_by_mode"]), list)
         assert "z_contribution" not in attributes
+        # the human-readable label round-trips through the yFiles EdgeLabel text
+        assert attributes["label"] == f"{source} \u2192 {target}: {attributes['weight']:+.4f}"
+        assert 0.0 <= attributes["weight_ratio"] <= 1.0
+        assert attributes["edge_width"] == pytest.approx(1.0 + 4.0 * attributes["weight_ratio"])
+        assert attributes["edge_color"] in {"#C62828", "#1565C0", "#757575"}
+        if attributes["weight"] < 0:
+            assert attributes["edge_color"] == "#C62828"
+        elif attributes["weight"] > 0:
+            assert attributes["edge_color"] == "#1565C0"
+        else:
+            assert attributes["edge_color"] == "#757575"
 
 
 def test_04d_graphml_is_deterministic(synthetic_spectrum, tmp_path: Path) -> None:
@@ -1700,6 +1790,419 @@ def test_04d_graphml_write_failure_is_reported(
         written = write_artifact_set(analysis, tmp_path)
     assert "graphml" not in written
     assert (tmp_path / "synthetic" / "motifs.json").is_file()
+
+
+def test_04d_graphml_node_label_falls_back_to_group_id() -> None:
+    metadata = graphml_node_metadata(
+        {"node_id": "G01", "group_id": "G01", "label": "", "size": 3}
+    )
+    assert metadata["label"] == "G01" and metadata["group_id"] == "G01"
+    # the literal string "None" is never accepted as a label either
+    assert graphml_node_metadata(
+        {"node_id": "G01", "group_id": "G01", "label": "None"}
+    )["label"] == "G01"
+
+
+@pytest.mark.parametrize(
+    "node",
+    [
+        {"node_id": "G01"},
+        {"node_id": "G01", "group_id": ""},
+        {"node_id": "G01", "group_id": "   "},
+        {"node_id": "G01", "group_id": "None", "label": "G01"},
+    ],
+)
+def test_04d_graphml_rejects_invalid_node_identity(node) -> None:
+    with pytest.raises(MotifValidationError, match="group_id"):
+        graphml_node_metadata(node)
+
+
+def test_04d_graphml_contains_yfiles_edge_styles(
+    synthetic_spectrum, tmp_path: Path
+) -> None:
+    from xml.etree import ElementTree as ET
+
+    analysis = _pathway_inputs(synthetic_spectrum)
+    paths = artifact_paths(analysis, tmp_path)
+    written = write_graphml_pathway(
+        paths["graphml"],
+        analysis.pathway,
+        groups=analysis.groups,
+        config=analysis.config,
+    )
+
+    graphml_ns = "http://graphml.graphdrawing.org/xmlns"
+    yfiles_ns = "http://www.yworks.com/xml/graphml"
+    root = ET.parse(written).getroot()
+
+    style_key = next(
+        key
+        for key in root.findall(f"{{{graphml_ns}}}key")
+        if key.get("yfiles.type") == "edgegraphics"
+    )
+    assert style_key.get("id") == "yfiles_edge_graphics"
+    assert style_key.get("for") == "edge"
+    assert style_key.get("yfiles.type") == "edgegraphics"
+    # canonical yFiles graphics key: no attr.name / attr.type
+    assert "attr.name" not in style_key.attrib
+    assert "attr.type" not in style_key.attrib
+
+    edges = root.findall(f".//{{{graphml_ns}}}edge")
+    assert edges
+    for edge_element in edges:
+        style_data = next(
+            data
+            for data in edge_element.findall(f"{{{graphml_ns}}}data")
+            if data.get("key") == style_key.get("id")
+        )
+        polyline = style_data.find(f"{{{yfiles_ns}}}PolyLineEdge")
+        assert polyline is not None
+
+        # yFiles Edge.type is an ordered xs:sequence: LineStyle -> Arrows -> EdgeLabel.
+        assert [child.tag for child in polyline] == [
+            f"{{{yfiles_ns}}}LineStyle",
+            f"{{{yfiles_ns}}}Arrows",
+            f"{{{yfiles_ns}}}EdgeLabel",
+        ]
+
+        line_style = polyline.find(f"{{{yfiles_ns}}}LineStyle")
+        assert line_style is not None
+        assert line_style.get("color") in {"#C62828", "#1565C0", "#757575"}
+        assert line_style.get("type") == "line"
+        assert 1.0 <= float(line_style.get("width")) <= 5.0
+
+        arrows = polyline.find(f"{{{yfiles_ns}}}Arrows")
+        assert arrows is not None
+        assert arrows.get("source") == "none" and arrows.get("target") == "standard"
+
+        edge_label = polyline.find(f"{{{yfiles_ns}}}EdgeLabel")
+        assert edge_label is not None
+        # the literal human-readable label is rendered (no "$label" placeholder)
+        assert edge_label.text and edge_label.text != "$label" and "\u2192" in edge_label.text
+        # node-only / nonexistent elements must not appear inside an edge realizer
+        assert polyline.find(f"{{{yfiles_ns}}}BorderStyle") is None
+        assert polyline.find(f"{{{yfiles_ns}}}ArrowStyle") is None
+
+
+def test_04d_graphml_style_matches_edge_metadata(
+    synthetic_spectrum, tmp_path: Path
+) -> None:
+    nx = pytest.importorskip("networkx")
+    from xml.etree import ElementTree as ET
+
+    analysis = _pathway_inputs(synthetic_spectrum)
+    paths = artifact_paths(analysis, tmp_path)
+    written = write_graphml_pathway(
+        paths["graphml"], analysis.pathway, config=analysis.config
+    )
+
+    graph = nx.read_graphml(written)
+    graphml_ns = "http://graphml.graphdrawing.org/xmlns"
+    yfiles_ns = "http://www.yworks.com/xml/graphml"
+    root = ET.parse(written).getroot()
+
+    for element in root.findall(f".//{{{graphml_ns}}}edge"):
+        source = element.get("source")
+        target = element.get("target")
+        line_style = element.find(f".//{{{yfiles_ns}}}LineStyle")
+        metadata = graph.edges[source, target]
+        assert line_style.get("color") == metadata["edge_color"]
+        assert float(line_style.get("width")) == pytest.approx(metadata["edge_width"])
+
+
+def test_04d_graphml_contains_yfiles_node_styles(
+    synthetic_spectrum, tmp_path: Path
+) -> None:
+    from xml.etree import ElementTree as ET
+
+    analysis = _pathway_inputs(synthetic_spectrum)
+    paths = artifact_paths(analysis, tmp_path)
+    written = write_graphml_pathway(
+        paths["graphml"],
+        analysis.pathway,
+        groups=analysis.groups,
+        config=analysis.config,
+    )
+
+    graphml_ns = "http://graphml.graphdrawing.org/xmlns"
+    yfiles_ns = "http://www.yworks.com/xml/graphml"
+    root = ET.parse(written).getroot()
+
+    style_key = next(
+        key
+        for key in root.findall(f"{{{graphml_ns}}}key")
+        if key.get("yfiles.type") == "nodegraphics"
+    )
+    assert style_key.get("id") == "yfiles_node_graphics"
+    assert style_key.get("for") == "node"
+    # canonical yFiles graphics key: no attr.name / attr.type
+    assert "attr.name" not in style_key.attrib
+    assert "attr.type" not in style_key.attrib
+
+    labels = {node["node_id"]: node["label"] for node in analysis.pathway["nodes"]}
+    nodes = root.findall(f".//{{{graphml_ns}}}node")
+    assert nodes
+    for node_element in nodes:
+        node_id = node_element.get("id")
+        style_data = next(
+            data
+            for data in node_element.findall(f"{{{graphml_ns}}}data")
+            if data.get("key") == style_key.get("id")
+        )
+        shape_node = style_data.find(f"{{{yfiles_ns}}}ShapeNode")
+        assert shape_node is not None
+
+        # yFiles Node.type / ShapeNode.type is an ordered xs:sequence.
+        assert [child.tag for child in shape_node] == [
+            f"{{{yfiles_ns}}}Geometry",
+            f"{{{yfiles_ns}}}Fill",
+            f"{{{yfiles_ns}}}BorderStyle",
+            f"{{{yfiles_ns}}}NodeLabel",
+            f"{{{yfiles_ns}}}Shape",
+        ]
+
+        geometry = shape_node.find(f"{{{yfiles_ns}}}Geometry")
+        assert geometry is not None
+        for attribute in ("x", "y", "width", "height"):
+            assert geometry.get(attribute) is not None
+        node_label = shape_node.find(f"{{{yfiles_ns}}}NodeLabel")
+        assert node_label is not None and node_label.text
+        assert node_label.text != "$label"
+        # The geometry is auto-sized from the emitted multi-line label text.
+        expected_width, expected_height = node_geometry_size(node_label.text)
+        assert float(geometry.get("width")) == pytest.approx(expected_width)
+        assert float(geometry.get("height")) == pytest.approx(expected_height)
+        assert float(geometry.get("width")) > 0.0 and float(geometry.get("height")) > 0.0
+
+        fill = shape_node.find(f"{{{yfiles_ns}}}Fill")
+        assert fill.get("color") in {"#EEEEEE", "#FFF3E0", "#E8EEF7"}
+        assert fill.get("transparent") == "false"
+
+        border = shape_node.find(f"{{{yfiles_ns}}}BorderStyle")
+        assert border.get("color") in {"#9E9E9E", "#EF6C00", "#37474F"}
+        assert border.get("type") == "line"
+        assert border.get("width") == "1.0"
+
+        # The label is multi-line: the group id, then one "cell (count)" line per
+        # region_composition entry (count descending, then cell type A-Z).
+        assert node_label.text.split("\n")[0] == labels[node_id]
+
+        shape = shape_node.find(f"{{{yfiles_ns}}}Shape")
+        assert shape.get("type") in {"rectangle", "roundrectangle", "ellipse"}
+
+
+def test_04d_graphml_node_style_matches_role(synthetic_spectrum, tmp_path: Path) -> None:
+    nx = pytest.importorskip("networkx")
+    from xml.etree import ElementTree as ET
+
+    analysis = _pathway_inputs(synthetic_spectrum)
+    paths = artifact_paths(analysis, tmp_path)
+    written = write_graphml_pathway(
+        paths["graphml"],
+        analysis.pathway,
+        groups=analysis.groups,
+        config=analysis.config,
+    )
+
+    graphml_ns = "http://graphml.graphdrawing.org/xmlns"
+    yfiles_ns = "http://www.yworks.com/xml/graphml"
+    root = ET.parse(written).getroot()
+    graph = nx.read_graphml(written)
+
+    expected = {
+        "background": ("#EEEEEE", "#9E9E9E", "rectangle"),
+        "singleton": ("#FFF3E0", "#EF6C00", "ellipse"),
+        "default": ("#E8EEF7", "#37474F", "roundrectangle"),
+    }
+    roles_seen: set[str] = set()
+    for node_element in root.findall(f".//{{{graphml_ns}}}node"):
+        node_id = node_element.get("id")
+        attributes = graph.nodes[node_id]
+        if attributes["is_background"]:
+            role = "background"
+        elif attributes["is_singleton"]:
+            role = "singleton"
+        else:
+            role = "default"
+        roles_seen.add(role)
+        fill_color, border_color, shape_type = expected[role]
+        assert node_element.find(f".//{{{yfiles_ns}}}Fill").get("color") == fill_color
+        assert node_element.find(f".//{{{yfiles_ns}}}BorderStyle").get("color") == border_color
+        assert node_element.find(f".//{{{yfiles_ns}}}Shape").get("type") == shape_type
+    assert roles_seen
+
+def test_04d_graphml_node_label_lists_region_composition(tmp_path: Path) -> None:
+    from xml.etree import ElementTree as ET
+
+    diagram = {
+        "nodes": [
+            {
+                "node_id": "G14",
+                "group_id": "G14",
+                "label": "G14",
+                "size": 4,
+                "region_composition": {"hDeltaA": 3, "FB4Z": 1},
+            },
+            {
+                "node_id": "G01",
+                "group_id": "G01",
+                "label": "G01",
+                "size": 0,
+                "region_composition": {},
+            },
+        ],
+        "edges": [],
+        "abs_max": 0.0,
+    }
+    written = write_graphml_pathway(tmp_path / "pathway.graphml", diagram)
+
+    graphml_ns = "http://graphml.graphdrawing.org/xmlns"
+    yfiles_ns = "http://www.yworks.com/xml/graphml"
+    root = ET.parse(written).getroot()
+    labels: dict[str, str] = {}
+    for node_element in root.findall(f".//{{{graphml_ns}}}node"):
+        node_label = node_element.find(f".//{{{yfiles_ns}}}NodeLabel")
+        assert node_label is not None and node_label.text is not None
+        labels[str(node_element.get("id"))] = node_label.text
+
+    # Group id first, then one "cell (count)" line per composition entry, most
+    # prevalent first.
+    assert labels["G14"] == "G14\nhDeltaA (3)\nFB4Z (1)"
+    assert "\n" in labels["G14"]
+    # An empty composition stays a single line.
+    assert labels["G01"] == "G01"
+
+
+def test_04d_graphml_node_label_ordering_and_fallbacks() -> None:
+    context = "GraphML node 'G07'"
+    # Counts descending, then cell type A-Z for ties.
+    assert _graphml_node_label(
+        {
+            "label": "G07",
+            "region_composition": json.dumps({"FB4Z": 1, "hDeltaA": 3, "FB5R": 3}),
+        },
+        context=context,
+    ) == "G07\nFB5R (3)\nhDeltaA (3)\nFB4Z (1)"
+    # Missing / empty / malformed / non-mapping compositions degrade to the label only.
+    assert _graphml_node_label({"label": "G02"}, context=context) == "G02"
+    assert _graphml_node_label({"label": "G02", "region_composition": "{}"}, context=context) == "G02"
+    assert _graphml_node_label({"label": "G02", "region_composition": "not json"}, context=context) == "G02"
+    assert _graphml_node_label({"label": "G02", "region_composition": "[]"}, context=context) == "G02"
+    # A non-numeric count is dropped rather than crashing the export.
+    assert _graphml_node_label(
+        {"label": "G02", "region_composition": json.dumps({"FB4Z": 2, "bad": None})},
+        context=context,
+    ) == "G02\nFB4Z (2)"
+    # The label must exist and must not be the literal "None".
+    with pytest.raises(MotifValidationError, match="no usable label"):
+        _graphml_node_label({"group_id": "G07"}, context=context)
+
+
+def test_04d_node_geometry_size_is_label_derived() -> None:
+    # A single-line label shorter than the floor keeps the minimum box.
+    width, height = node_geometry_size("G01")
+    assert (width, height) == (GRAPHML_NODE_MIN_WIDTH, GRAPHML_NODE_MIN_HEIGHT)
+
+    # Height grows with the line count at the yFiles default line spacing plus padding.
+    lines = ["G14", "hDeltaA (3)", "FB4Z (1)"]
+    label = "\n".join(lines)
+    width, height = node_geometry_size(label)
+    expected_height = len(lines) * GRAPHML_NODE_FONT_SIZE * GRAPHML_NODE_LINE_SPACING + 2.0 * GRAPHML_NODE_PADDING_Y
+    expected_width = (
+        max(len(line) for line in lines) * GRAPHML_NODE_CHAR_WIDTH + 2.0 * GRAPHML_NODE_PADDING_X
+    )
+    assert height == pytest.approx(expected_height)
+    assert width == pytest.approx(expected_width)
+    assert all(attribute > 0.0 for attribute in (width, height))
+
+    # More lines -> taller; longer longest line -> wider.
+    assert node_geometry_size("G14\nA (1)\nB (1)")[1] > node_geometry_size("G14\nA (1)")[1]
+    assert node_geometry_size("G14\n" + "X" * 40)[0] > node_geometry_size("G14\n" + "X" * 10)[0]
+
+    # Deterministic and total: empty / None / non-ASCII inputs never raise.
+    assert node_geometry_size(label) == node_geometry_size(label)
+    assert node_geometry_size("") == (GRAPHML_NODE_MIN_WIDTH, GRAPHML_NODE_MIN_HEIGHT)
+    assert node_geometry_size(None) == (GRAPHML_NODE_MIN_WIDTH, GRAPHML_NODE_MIN_HEIGHT)
+    assert node_geometry_size("G14\nh\u0394A (3)")[0] > 0.0
+
+
+def test_04d_graphml_geometry_tracks_label_and_stays_deterministic(tmp_path: Path) -> None:
+    from xml.etree import ElementTree as ET
+
+    diagram = {
+        "nodes": [
+            {"node_id": "G01", "group_id": "G01", "label": "G01", "size": 1, "region_composition": {}},
+            {
+                "node_id": "G14",
+                "group_id": "G14",
+                "label": "G14",
+                "size": 4,
+                "region_composition": {"hDeltaA": 3, "FB4Z": 1},
+            },
+            {
+                "node_id": "G07",
+                "group_id": "G07",
+                "label": "G07",
+                "size": 2,
+                "region_composition": {"FB5R": 2},
+            },
+        ],
+        "edges": [],
+        "abs_max": 0.0,
+    }
+    first = write_graphml_pathway(tmp_path / "a" / "pathway.graphml", diagram)
+    second = write_graphml_pathway(tmp_path / "b" / "pathway.graphml", diagram)
+    assert first.read_bytes() == second.read_bytes()
+
+    graphml_ns = "http://graphml.graphdrawing.org/xmlns"
+    yfiles_ns = "http://www.yworks.com/xml/graphml"
+    root = ET.parse(first).getroot()
+    geometry_by_id: dict[str, tuple[float, float, float, float]] = {}
+    for node_element in root.findall(f".//{{{graphml_ns}}}node"):
+        node_id = str(node_element.get("id"))
+        node_label = node_element.find(f".//{{{yfiles_ns}}}NodeLabel")
+        geometry = node_element.find(f".//{{{yfiles_ns}}}Geometry")
+        assert node_label is not None and node_label.text is not None
+        assert geometry is not None
+        expected_width, expected_height = node_geometry_size(node_label.text)
+        assert float(geometry.get("width")) == pytest.approx(expected_width)
+        assert float(geometry.get("height")) == pytest.approx(expected_height)
+        geometry_by_id[node_id] = (
+            float(geometry.get("x")),
+            float(geometry.get("y")),
+            float(geometry.get("width")),
+            float(geometry.get("height")),
+        )
+
+    # The multi-line node is taller than the single-line node.
+    assert geometry_by_id["G14"][3] > geometry_by_id["G01"][3]
+    # Grid positions stay distinct and ordered (no two nodes share a cell).
+    positions = [(x, y) for x, y, _, _ in geometry_by_id.values()]
+    assert len(set(positions)) == len(positions)
+
+
+def test_04d_graphml_fields_do_not_change_json_npz_or_config_hash(
+    synthetic_spectrum, tmp_path: Path
+) -> None:
+    analysis = _pathway_inputs(synthetic_spectrum)
+
+    before_json = json.dumps(analysis.to_dict(), sort_keys=True, ensure_ascii=False)
+    before_arrays = {
+        key: value.copy()
+        for key, value in analysis.arrays.items()
+        if isinstance(value, np.ndarray)
+    }
+    before_hash = analysis.config.config_hash()
+
+    write_graphml_pathway(
+        tmp_path / "motifs.pathway.graphml", analysis.pathway, config=analysis.config
+    )
+
+    assert json.dumps(analysis.to_dict(), sort_keys=True, ensure_ascii=False) == before_json
+    assert analysis.config.config_hash() == before_hash
+    assert set(analysis.arrays) == set(before_arrays)
+    for key, value in before_arrays.items():
+        np.testing.assert_array_equal(analysis.arrays[key], value)
 
 
 def test_04d_cli_pathway_flags_reach_the_config() -> None:
@@ -1973,3 +2476,622 @@ def test_reference_pathway_graphml(tmp_path: Path) -> None:
     # the whole artifact set round-trips through load_motifs
     loaded = load_motifs(written["json"])
     assert loaded.to_dict() == analysis.to_dict()
+
+
+# ---------------------------------------------------------------------------
+# 04D update A -- unified weight rules, polarity rules and hybrid blending
+# ---------------------------------------------------------------------------
+_MODE_2x2 = np.array([[1.0, -2.0], [3.0, -4.0]])
+_MATRIX_2x2 = np.array([[10.0, 0.0], [0.0, 20.0]])
+
+
+def test_04d_update_resolve_unified_weight_rules() -> None:
+    signed = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, source="both", rule="signed")
+    np.testing.assert_allclose(signed["viz"], _MODE_2x2 + _MATRIX_2x2)
+    np.testing.assert_allclose(signed["filter"], signed["viz"])
+    assert signed["resolved"] == "both" and signed["needs_matrix"] is True
+
+    abs_rule = resolve_unified_weight(_MODE_2x2, None, source="mode", rule="abs")
+    np.testing.assert_allclose(abs_rule["filter"], np.abs(_MODE_2x2))
+    np.testing.assert_allclose(abs_rule["viz"], _MODE_2x2)
+    assert abs_rule["needs_matrix"] is False
+
+    positive = resolve_unified_weight(_MODE_2x2, None, rule="positive")
+    np.testing.assert_allclose(positive["filter"], np.maximum(_MODE_2x2, 0.0))
+    np.testing.assert_allclose(positive["viz"], _MODE_2x2)
+
+    negative = resolve_unified_weight(_MODE_2x2, None, rule="negative")
+    np.testing.assert_allclose(negative["filter"], np.minimum(_MODE_2x2, 0.0))
+
+    mode_only = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="mode-only")
+    np.testing.assert_allclose(mode_only["filter"], _MODE_2x2)
+    assert mode_only["resolved"] == "mode" and mode_only["needs_matrix"] is False
+
+    matrix_only = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="matrix-only")
+    np.testing.assert_allclose(matrix_only["filter"], _MATRIX_2x2)
+    assert matrix_only["resolved"] == "matrix" and matrix_only["needs_matrix"] is True
+
+    hybrid = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="hybrid", alpha=0.25)
+    np.testing.assert_allclose(hybrid["filter"], 0.25 * _MODE_2x2 + 0.75 * _MATRIX_2x2)
+    assert hybrid["resolved"] == "hybrid" and hybrid["needs_matrix"] is True
+
+
+def test_04d_update_hybrid_alpha_endpoints_match_the_pure_rules() -> None:
+    one = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="hybrid", alpha=1.0)
+    mode_only = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="mode-only")
+    zero = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="hybrid", alpha=0.0)
+    matrix_only = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="matrix-only")
+    np.testing.assert_array_equal(one["viz"], mode_only["viz"])
+    np.testing.assert_array_equal(zero["viz"], matrix_only["viz"])
+
+
+def test_04d_update_abs_matches_signed_filter_magnitudes() -> None:
+    signed = resolve_unified_weight(_MODE_2x2, None, rule="signed")
+    abs_rule = resolve_unified_weight(_MODE_2x2, None, rule="abs")
+    np.testing.assert_array_equal(abs_rule["filter"], np.abs(signed["filter"]))
+    assert abs_rule["abs_max"] == signed["abs_max"]
+
+
+def test_04d_update_resolved_source_and_abs_max() -> None:
+    result = resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, source="both", rule="signed")
+    assert result["abs_max"] == pytest.approx(float(np.abs(_MODE_2x2 + _MATRIX_2x2).max()))
+    assert result["rule"] == "signed"
+    assert result["filter"].dtype == np.dtype("<f8") and result["viz"].dtype == np.dtype("<f8")
+
+
+@pytest.mark.parametrize("rule", ["bogus", "", "SIGNED", "mode_only"])
+def test_04d_update_resolve_unified_weight_rejects_unknown_rule(rule: str) -> None:
+    with pytest.raises(MotifValidationError):
+        resolve_unified_weight(_MODE_2x2, None, rule=rule)
+
+
+@pytest.mark.parametrize("alpha", [-0.1, 1.5, float("nan"), float("inf")])
+def test_04d_update_resolve_unified_weight_rejects_bad_alpha(alpha: float) -> None:
+    with pytest.raises(MotifValidationError):
+        resolve_unified_weight(_MODE_2x2, _MATRIX_2x2, rule="hybrid", alpha=alpha)
+
+
+def test_04d_update_resolve_unified_weight_rejects_non_square() -> None:
+    with pytest.raises(MotifValidationError):
+        resolve_unified_weight(np.zeros((2, 3)), None)
+    with pytest.raises(MotifValidationError):
+        resolve_unified_weight(_MODE_2x2, np.zeros((3, 3)), source="both")
+
+
+def test_04d_update_resolve_unified_weight_rejects_mismatched_shapes() -> None:
+    with pytest.raises(MotifValidationError):
+        resolve_unified_weight(_MODE_2x2, np.zeros((3, 3)), rule="hybrid")
+
+
+@pytest.mark.parametrize("rule", ["abs", "positive", "negative", "signed"])
+def test_04d_update_source_rules_still_require_the_matrix(rule: str) -> None:
+    with pytest.raises(MotifValidationError) as error:
+        resolve_unified_weight(_MODE_2x2, None, source="both", rule=rule)
+    assert CODE_MATRIX_MISSING in str(error.value)
+
+
+def test_04d_update_matrix_only_and_hybrid_require_the_matrix() -> None:
+    for rule in ("matrix-only", "hybrid"):
+        with pytest.raises(MotifValidationError) as error:
+            resolve_unified_weight(_MODE_2x2, None, source="mode", rule=rule)
+        assert CODE_MATRIX_MISSING in str(error.value)
+
+
+@pytest.mark.parametrize(
+    ("source", "rule", "polarity", "expected"),
+    [
+        ("mode", "signed", "sign", False),
+        ("both", "signed", "sign", True),
+        ("matrix", "signed", "sign", True),
+        ("mode", "abs", "sign", False),
+        ("both", "abs", "sign", True),
+        ("matrix", "negative", "sign", True),
+        ("both", "positive", "sign", True),
+        ("mode", "mode-only", "sign", False),
+        ("mode", "matrix-only", "sign", True),
+        ("mode", "hybrid", "sign", True),
+        ("mode", "signed", "delta", True),
+        ("mode", "signed", "pre_z", False),
+    ],
+)
+def test_04d_update_needs_pathway_matrix_truth_table(
+    source: str, rule: str, polarity: str, expected: bool
+) -> None:
+    config = MotifConfig(
+        pathway_source=source, pathway_weight_rule=rule, pathway_polarity_rule=polarity
+    )
+    assert needs_pathway_matrix(config) is expected
+
+
+def test_04d_update_resolve_edge_polarity_rules() -> None:
+    assert resolve_edge_polarity(rule="sign", viz_weight=-1.5) == -1
+    assert resolve_edge_polarity(rule="sign", viz_weight=2.5) == 1
+    assert resolve_edge_polarity(rule="sign", viz_weight=0.0) == 0
+    assert resolve_edge_polarity(rule="sign", viz_weight=-0.0) == 0
+    assert resolve_edge_polarity(rule="pre_z", source_signed=-3.0) == -1
+    assert resolve_edge_polarity(rule="pre_z", source_signed=0.0) == 0
+    assert resolve_edge_polarity(rule="post_z", target_signed=4.0) == 1
+    assert resolve_edge_polarity(rule="delta", mode_weight=1.0, matrix_weight=5.0) == -1
+    assert resolve_edge_polarity(rule="delta", mode_weight=5.0, matrix_weight=1.0) == 1
+    assert resolve_edge_polarity(rule="delta", mode_weight=3.0, matrix_weight=3.0) == 0
+
+
+def test_04d_update_resolve_edge_polarity_is_independent_of_the_ignored_inputs() -> None:
+    # pre_z never reads the target sum and post_z never reads the source sum
+    assert resolve_edge_polarity(rule="pre_z", source_signed=1.0, target_signed=-99.0) == 1
+    assert resolve_edge_polarity(rule="post_z", source_signed=-99.0, target_signed=-1.0) == -1
+
+
+def test_04d_update_resolve_edge_polarity_rejects_unknown_rule() -> None:
+    with pytest.raises(MotifValidationError):
+        resolve_edge_polarity(rule="bogus")
+
+
+def test_04d_update_resolve_edge_polarity_rejects_non_finite() -> None:
+    with pytest.raises(MotifValidationError):
+        resolve_edge_polarity(rule="sign", viz_weight=float("nan"))
+    with pytest.raises(MotifValidationError):
+        resolve_edge_polarity(rule="delta", mode_weight=float("inf"), matrix_weight=0.0)
+
+
+def _pathway_run(spectrum, *, matrix=None, **config_kwargs):
+    """Run the pathway stage over the synthetic analysis with a custom config."""
+    analysis = _pathway_inputs(spectrum)
+    diagram, diagnostics = build_pathway(
+        analysis.groups,
+        participation=analysis.participation,
+        loadings_left=analysis.loadings_left,
+        loadings_right=analysis.loadings_right,
+        values=analysis.retained_values,
+        neuron_ids=analysis.neuron_order,
+        config=MotifConfig(**config_kwargs),
+        matrix=matrix,
+    )
+    return analysis, diagram, diagnostics
+
+
+def _edge_set(diagram) -> set[tuple[str, str]]:
+    return {(edge["source"], edge["target"]) for edge in diagram.to_dict()["edges"]}
+
+
+def test_04d_update_default_diagnostics_carry_the_rules(synthetic_spectrum) -> None:
+    _, diagram, diagnostics = _pathway_run(synthetic_spectrum)
+    assert diagnostics["weight_rule"] == DEFAULT_PATHWAY_WEIGHT_RULE == "signed"
+    assert diagnostics["polarity_rule"] == DEFAULT_PATHWAY_POLARITY_RULE == "sign"
+    assert diagnostics["hybrid_alpha"] == DEFAULT_PATHWAY_HYBRID_ALPHA == 0.5
+    assert diagnostics["abs_max_raw"] == diagnostics["abs_max"]
+    assert diagnostics["abs_max_mode"] > 0.0
+    assert diagnostics["abs_max_matrix"] == 0.0
+    assert diagram.to_dict()["source"] == "mode"
+
+
+def test_04d_update_abs_keeps_the_same_edges_as_signed(synthetic_spectrum) -> None:
+    _, signed, _ = _pathway_run(synthetic_spectrum)
+    _, abs_diagram, _ = _pathway_run(synthetic_spectrum, pathway_weight_rule="abs")
+    assert _edge_set(abs_diagram) == _edge_set(signed)
+    assert abs_diagram.to_dict()["abs_max"] == pytest.approx(signed.to_dict()["abs_max"])
+
+
+@pytest.mark.parametrize(
+    ("rule", "sign"),
+    [("positive", 1), ("negative", -1)],
+)
+def test_04d_update_one_sided_rules_keep_only_their_own_sign(
+    synthetic_spectrum, rule: str, sign: int
+) -> None:
+    _, signed, _ = _pathway_run(synthetic_spectrum)
+    _, one_sided, diagnostics = _pathway_run(synthetic_spectrum, pathway_weight_rule=rule)
+    edges = one_sided.to_dict()["edges"]
+    assert edges, "the synthetic pathway needs at least one one-sided edge"
+    for edge in edges:
+        assert sign * edge["weight"] >= 0.0
+    # the filter rescales abs_max to the strongest *surviving* contribution
+    assert diagnostics["abs_max"] == pytest.approx(one_sided.to_dict()["abs_max"])
+    assert diagnostics["abs_max"] <= signed.to_dict()["abs_max"] + 1e-12
+
+
+def test_04d_update_positive_and_negative_are_disjoint(synthetic_spectrum) -> None:
+    _, positive, _ = _pathway_run(synthetic_spectrum, pathway_weight_rule="positive")
+    _, negative, _ = _pathway_run(synthetic_spectrum, pathway_weight_rule="negative")
+    assert _edge_set(positive).isdisjoint(_edge_set(negative))
+
+
+def test_04d_update_abs_weight_always_matches_the_filter_magnitude(synthetic_spectrum) -> None:
+    for rule in ("signed", "abs", "positive", "negative"):
+        _, diagram, _ = _pathway_run(synthetic_spectrum, pathway_weight_rule=rule)
+        for edge in diagram.to_dict()["edges"]:
+            assert edge["abs_weight"] == pytest.approx(abs(edge["weight"]))
+
+
+def test_04d_update_hybrid_endpoints_equal_the_pure_rules(synthetic_spectrum) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    _, mode_only, _ = _pathway_run(synthetic_spectrum, pathway_weight_rule="mode-only")
+    _, matrix_only, _ = _pathway_run(
+        synthetic_spectrum, matrix=matrix, pathway_weight_rule="matrix-only"
+    )
+    _, hybrid_one, _ = _pathway_run(
+        synthetic_spectrum, matrix=matrix, pathway_weight_rule="hybrid", pathway_hybrid_alpha=1.0
+    )
+    _, hybrid_zero, _ = _pathway_run(
+        synthetic_spectrum, matrix=matrix, pathway_weight_rule="hybrid", pathway_hybrid_alpha=0.0
+    )
+    assert hybrid_one.to_dict()["weights"] == pytest.approx(list(mode_only.to_dict()["weights"]))
+    assert hybrid_zero.to_dict()["weights"] == pytest.approx(
+        list(matrix_only.to_dict()["weights"])
+    )
+
+
+def test_04d_update_hybrid_blend_reports_both_contribution_scales(synthetic_spectrum) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    _, diagram, diagnostics = _pathway_run(
+        synthetic_spectrum, matrix=matrix, pathway_weight_rule="hybrid", pathway_hybrid_alpha=0.25
+    )
+    assert diagnostics["weight_rule"] == "hybrid"
+    assert diagnostics["hybrid_alpha"] == 0.25
+    assert diagnostics["abs_max_mode"] > 0.0 and diagnostics["abs_max_matrix"] > 0.0
+    assert diagram.to_dict()["source"] == "hybrid"
+
+
+def test_04d_update_matrix_only_has_no_modes(synthetic_spectrum) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    _, diagram, diagnostics = _pathway_run(
+        synthetic_spectrum, matrix=matrix, pathway_weight_rule="matrix-only"
+    )
+    payload = diagram.to_dict()
+    assert payload["source"] == "matrix" and diagnostics["abs_max_mode"] > 0.0
+    for edge in payload["edges"]:
+        assert edge["modes"] == [] and edge["n_modes"] == 0 and edge["top_modes"] == []
+        assert edge["polarity"] == int(np.sign(edge["weight"]))
+
+
+def test_04d_update_delta_polarity_is_edge_local(synthetic_spectrum) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    _, diagram, _ = _pathway_run(synthetic_spectrum, matrix=matrix, pathway_polarity_rule="delta")
+    payload = diagram.to_dict()
+    assert payload["edges"], "the synthetic pathway must keep at least one edge"
+    for edge in payload["edges"]:
+        assert edge["polarity"] in (-1, 0, 1)
+
+
+def test_04d_update_sign_polarity_still_matches_the_weight(synthetic_spectrum) -> None:
+    _, diagram, _ = _pathway_run(synthetic_spectrum)
+    for edge in diagram.to_dict()["edges"]:
+        assert edge["polarity"] == int(np.sign(edge["weight"]))
+
+
+@pytest.mark.parametrize("rule", ["pre_z", "post_z"])
+def test_04d_update_group_level_polarity_is_row_or_column_constant(
+    synthetic_spectrum, rule: str
+) -> None:
+    _, diagram, _ = _pathway_run(synthetic_spectrum, pathway_polarity_rule=rule)
+    edges = diagram.to_dict()["edges"]
+    assert edges
+    key = "source" if rule == "pre_z" else "target"
+    seen: dict[str, int] = {}
+    for edge in edges:
+        assert edge["polarity"] in (-1, 0, 1)
+        group = edge[key]
+        assert seen.setdefault(group, edge["polarity"]) == edge["polarity"]
+
+
+def test_04d_update_polarity_counts_follow_the_rule(synthetic_spectrum) -> None:
+    _, diagram, _ = _pathway_run(synthetic_spectrum, pathway_polarity_rule="pre_z")
+    payload = diagram.to_dict()
+    positives = sum(1 for edge in payload["edges"] if edge["polarity"] > 0)
+    negatives = sum(1 for edge in payload["edges"] if edge["polarity"] < 0)
+    assert payload["n_positive"] == positives and payload["n_negative"] == negatives
+
+
+def test_04d_update_weight_rule_override_is_logged(synthetic_spectrum, caplog) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    with caplog.at_level("INFO"):
+        _, diagram, _ = _pathway_run(
+            synthetic_spectrum,
+            matrix=matrix,
+            pathway_source="both",
+            pathway_weight_rule="mode-only",
+        )
+    assert any(CODE_WEIGHT_RULE in record.message for record in caplog.records)
+    assert diagram.to_dict()["source"] == "mode"
+
+
+def test_04d_update_group_level_polarity_is_logged(synthetic_spectrum, caplog) -> None:
+    with caplog.at_level("INFO"):
+        _pathway_run(synthetic_spectrum, pathway_polarity_rule="post_z")
+    assert any(CODE_POLARITY_RULE in record.message for record in caplog.records)
+
+
+def test_04d_update_cli_flags_reach_the_config() -> None:
+    parser = build_argument_parser()
+    args = parser.parse_args(
+        [
+            "-i", "x/eigen.json",
+            "--pathway-weight-rule", "hybrid",
+            "--pathway-polarity-rule", "delta",
+            "--pathway-hybrid-alpha", "0.3",
+        ]
+    )
+    assert args.pathway_weight_rule == "hybrid"
+    assert args.pathway_polarity_rule == "delta"
+    assert args.pathway_hybrid_alpha == 0.3
+    defaults = parser.parse_args(["-i", "x/eigen.json"])
+    assert defaults.pathway_weight_rule == "signed"
+    assert defaults.pathway_polarity_rule == "sign"
+    assert defaults.pathway_hybrid_alpha == 0.5
+
+
+def test_04d_update_cli_mode_weights_alias() -> None:
+    parser = build_argument_parser()
+    alias = parser.parse_args(["-i", "x/eigen.json", "--pathway-mode-weights", "uniform"])
+    assert alias.pathway_weight == "uniform"
+    shipped = parser.parse_args(["-i", "x/eigen.json", "--pathway-weight", "uniform"])
+    assert shipped.pathway_weight == alias.pathway_weight
+
+
+@pytest.mark.parametrize("rule", PATHWAY_WEIGHT_RULES)
+def test_04d_update_cli_accepts_every_weight_rule(rule: str) -> None:
+    parser = build_argument_parser()
+    args = parser.parse_args(["-i", "x/eigen.json", "--pathway-weight-rule", rule])
+    assert args.pathway_weight_rule == rule
+
+
+@pytest.mark.parametrize("rule", PATHWAY_POLARITY_RULES)
+def test_04d_update_cli_accepts_every_polarity_rule(rule: str) -> None:
+    parser = build_argument_parser()
+    args = parser.parse_args(["-i", "x/eigen.json", "--pathway-polarity-rule", rule])
+    assert args.pathway_polarity_rule == rule
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        MotifConfig(pathway_weight_rule="bogus"),
+        MotifConfig(pathway_polarity_rule="bogus"),
+        MotifConfig(pathway_hybrid_alpha=1.5),
+        MotifConfig(pathway_hybrid_alpha=-0.1),
+        MotifConfig(pathway_hybrid_alpha=float("nan")),
+    ],
+)
+def test_04d_update_config_rejects_bad_rule_values(synthetic_spectrum, config: MotifConfig) -> None:
+    # the engine validates defensively, so an invalid rule aborts the analysis
+    with pytest.raises(MotifValidationError):
+        build_motif_analysis(synthetic_spectrum, config=config)
+
+
+@pytest.mark.parametrize("alpha", ["1.5", "-0.1"])
+def test_04d_update_main_exits_one_on_bad_alpha(
+    synthetic_workspace: Path, tmp_path: Path, caplog, alpha: str
+) -> None:
+    eigen = synthetic_workspace / "synthetic.gv" / "eigen.json"
+    outdir = tmp_path / f"alpha_{alpha}"
+    with caplog.at_level("ERROR"):
+        assert main(
+            ["-i", str(eigen), "-o", str(outdir), "--pathway-hybrid-alpha", alpha]
+        ) == 1
+    assert any("pathway_hybrid_alpha" in record.message for record in caplog.records)
+    assert not outdir.exists()
+
+
+def test_04d_update_config_hash_changes_with_the_rules() -> None:
+    base = MotifConfig()
+    assert base.config_hash() == "e973fece"
+    assert MotifConfig(pathway_weight_rule="abs").config_hash() != base.config_hash()
+    assert MotifConfig(pathway_polarity_rule="delta").config_hash() != base.config_hash()
+    assert MotifConfig(pathway_hybrid_alpha=0.25).config_hash() != base.config_hash()
+    assert MotifConfig(pathway_weight_rule="signed").config_hash() == base.config_hash()
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--pathway-weight-rule", "matrix-only"],
+        ["--pathway-weight-rule", "hybrid"],
+        ["--pathway-polarity-rule", "delta"],
+    ],
+)
+def test_04d_update_missing_matrix_is_a_hard_error(
+    synthetic_workspace: Path, tmp_path: Path, caplog, flags: list[str]
+) -> None:
+    eigen = synthetic_workspace / "synthetic.gv" / "eigen.json"
+    outdir = tmp_path / flags[-1]
+    with caplog.at_level("ERROR"):
+        assert main(["-i", str(eigen), "-o", str(outdir), *flags]) == 1
+    assert any(CODE_MATRIX_MISSING in record.message for record in caplog.records)
+    assert not outdir.exists()
+
+
+def test_04d_update_hybrid_end_to_end_writes_the_rules(
+    synthetic_workspace: Path, tmp_path: Path, monkeypatch
+) -> None:
+    import src.clustering.functional_motifs as fm
+
+    eigen = synthetic_workspace / "synthetic.gv" / "eigen.json"
+    z = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    monkeypatch.setattr(fm, "load_pathway_matrix", lambda _source: (z, list(NEURON_IDS)))
+    outdir = tmp_path / "hybrid"
+    assert main(
+        [
+            "-i", str(eigen), "-o", str(outdir),
+            "--pathway-weight-rule", "hybrid",
+            "--pathway-hybrid-alpha", "0.6",
+            "--pathway-polarity-rule", "post_z",
+            "--stats",
+        ]
+    ) == 0
+    payload = json.loads((outdir / "synthetic" / "motifs.json").read_text(encoding="utf-8"))
+    assert payload["config"]["pathway_weight_rule"] == "hybrid"
+    assert payload["config"]["pathway_hybrid_alpha"] == pytest.approx(0.6)
+    assert payload["config"]["pathway_polarity_rule"] == "post_z"
+    assert payload["pathway"]["source"] == "hybrid"
+
+
+def _graphml_for(spectrum, tmp_path: Path, config: MotifConfig, matrix=None):
+    nx = pytest.importorskip("networkx")
+    analysis = _pathway_inputs(spectrum)
+    diagram, _ = build_pathway(
+        analysis.groups,
+        participation=analysis.participation,
+        loadings_left=analysis.loadings_left,
+        loadings_right=analysis.loadings_right,
+        values=analysis.retained_values,
+        neuron_ids=analysis.neuron_order,
+        config=config,
+        matrix=matrix,
+    )
+    path = tmp_path / "rules.graphml"
+    write_graphml_pathway(path, diagram, groups=analysis.groups, config=config)
+    return nx.read_graphml(path), path
+
+
+def test_04d_update_graphml_records_the_default_rules(synthetic_spectrum, tmp_path: Path) -> None:
+    graph, _ = _graphml_for(synthetic_spectrum, tmp_path, MotifConfig())
+    assert graph.graph["pathway_unified_weight_rule"] == "signed"
+    assert graph.graph["pathway_polarity_rule"] == "sign"
+    assert "pathway_hybrid_alpha" not in graph.graph
+    # the pre-existing key keeps its historical meaning: the *mode* weighting rule
+    assert graph.graph["pathway_weight_rule"] == "evr"
+
+
+@pytest.mark.parametrize("rule", PATHWAY_WEIGHT_RULES)
+def test_04d_update_graphml_records_every_weight_rule(
+    synthetic_spectrum, tmp_path: Path, rule: str
+) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    graph, _ = _graphml_for(
+        synthetic_spectrum, tmp_path, MotifConfig(pathway_weight_rule=rule), matrix=matrix
+    )
+    assert graph.graph["pathway_unified_weight_rule"] == rule
+    assert ("pathway_hybrid_alpha" in graph.graph) == (rule == "hybrid")
+
+
+@pytest.mark.parametrize("rule", PATHWAY_POLARITY_RULES)
+def test_04d_update_graphml_records_every_polarity_rule(
+    synthetic_spectrum, tmp_path: Path, rule: str
+) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    graph, _ = _graphml_for(
+        synthetic_spectrum, tmp_path, MotifConfig(pathway_polarity_rule=rule), matrix=matrix
+    )
+    assert graph.graph["pathway_polarity_rule"] == rule
+
+
+def test_04d_update_graphml_hybrid_alpha_value(synthetic_spectrum, tmp_path: Path) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    config = MotifConfig(pathway_weight_rule="hybrid", pathway_hybrid_alpha=0.4)
+    graph, _ = _graphml_for(synthetic_spectrum, tmp_path, config, matrix=matrix)
+    assert float(graph.graph["pathway_hybrid_alpha"]) == pytest.approx(0.4)
+
+
+def test_04d_update_graphml_write_does_not_change_the_config_hash(
+    synthetic_spectrum, tmp_path: Path
+) -> None:
+    matrix = np.full((len(NEURON_IDS), len(NEURON_IDS)), -0.25)
+    config = MotifConfig(pathway_weight_rule="hybrid")
+    before = config.config_hash()
+    _graphml_for(synthetic_spectrum, tmp_path, config, matrix=matrix)
+    assert config.config_hash() == before
+
+
+# ---------------------------------------------------------------------------
+# 04D update A -- integration against the real reference dataset
+# ---------------------------------------------------------------------------
+@pytest.mark.slow
+def test_reference_update_defaults_are_backward_compatible() -> None:
+    spectrum = load_spectrum(REFERENCE_JSON)
+    analysis, report = build_motif_analysis(spectrum, source_artifact=REFERENCE_JSON)
+    assert not report.has_errors, [issue.message for issue in report.errors]
+    pathway = analysis.pathway
+    assert (pathway["n_nodes"], pathway["n_edges"]) == (22, 39)
+    assert pathway["abs_max"] == pytest.approx(2.345299756658418)
+    assert (pathway["n_positive"], pathway["n_negative"]) == (0, 39)
+    assert (pathway["n_intra"], pathway["n_cross"]) == (7, 32)
+    assert pathway["weight_concentration"] == pytest.approx(0.05584213591659331)
+    assert pathway["source"] == "mode" and pathway["weight"] == "evr"
+    assert analysis.config.config_hash() == "e973fece"
+    assert analysis.metadata["config_hash"] == "e973fece"
+    diagnostics = analysis.diagnostics["pathway"]
+    assert diagnostics["weight_rule"] == "signed"
+    assert diagnostics["polarity_rule"] == "sign"
+    assert diagnostics["hybrid_alpha"] == 0.5
+    assert diagnostics["abs_max_mode"] == pytest.approx(2.345299756658418)
+    assert diagnostics["abs_max_matrix"] == 0.0
+    assert diagnostics["abs_max_raw"] == pytest.approx(2.345299756658418)
+
+
+@pytest.mark.slow
+def test_reference_update_abs_matches_signed() -> None:
+    spectrum = load_spectrum(REFERENCE_JSON)
+    signed, _ = build_motif_analysis(spectrum, source_artifact=REFERENCE_JSON)
+    abs_rule, _ = build_motif_analysis(
+        spectrum, source_artifact=REFERENCE_JSON, config=MotifConfig(pathway_weight_rule="abs")
+    )
+    assert [(e["source"], e["target"]) for e in abs_rule.pathway["edges"]] == [
+        (e["source"], e["target"]) for e in signed.pathway["edges"]
+    ]
+    assert abs_rule.pathway["abs_max"] == pytest.approx(signed.pathway["abs_max"])
+
+
+@pytest.mark.slow
+def test_reference_update_negative_matches_signed_on_this_dataset() -> None:
+    # every kept signed contribution here is negative, so the negative rule is exact
+    spectrum = load_spectrum(REFERENCE_JSON)
+    signed, _ = build_motif_analysis(spectrum, source_artifact=REFERENCE_JSON)
+    negative, _ = build_motif_analysis(
+        spectrum, source_artifact=REFERENCE_JSON, config=MotifConfig(pathway_weight_rule="negative")
+    )
+    assert negative.pathway["n_edges"] == 39
+    assert list(negative.pathway["weights"]) == pytest.approx(list(signed.pathway["weights"]))
+    assert negative.pathway["abs_max"] == pytest.approx(2.345299756658418)
+
+
+@pytest.mark.slow
+def test_reference_update_positive_rescales_abs_max() -> None:
+    # the one-sided rule rescales the threshold to the strongest *surviving* contribution
+    spectrum = load_spectrum(REFERENCE_JSON)
+    positive, _ = build_motif_analysis(
+        spectrum, source_artifact=REFERENCE_JSON, config=MotifConfig(pathway_weight_rule="positive")
+    )
+    pathway = positive.pathway
+    assert pathway["n_edges"] == 13 and pathway["n_negative"] == 0
+    assert pathway["abs_max"] == pytest.approx(0.12092130881131712)
+    assert positive.diagnostics["pathway"]["abs_max_raw"] == pytest.approx(2.345299756658418)
+    for edge in pathway["edges"]:
+        assert edge["weight"] >= 0.0
+
+
+@pytest.mark.slow
+def test_reference_update_hybrid_blend_numbers() -> None:
+    spectrum = load_spectrum(REFERENCE_JSON)
+    analysis, report = build_motif_analysis(
+        spectrum,
+        source_artifact=REFERENCE_JSON,
+        config=MotifConfig(pathway_weight_rule="hybrid", pathway_hybrid_alpha=0.5),
+    )
+    assert not report.has_errors
+    pathway = analysis.pathway
+    assert pathway["source"] == "hybrid"
+    assert pathway["n_edges"] == 53
+    assert pathway["abs_max"] == pytest.approx(4.7958655723736365)
+    assert (pathway["n_positive"], pathway["n_negative"]) == (5, 48)
+    assert pathway["weight_concentration"] == pytest.approx(0.046509305936680886)
+    diagnostics = analysis.diagnostics["pathway"]
+    assert diagnostics["abs_max_mode"] == pytest.approx(2.345299756658418)
+    assert diagnostics["abs_max_matrix"] == pytest.approx(7.246431388088855)
+    assert diagnostics["hybrid_alpha"] == 0.5
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("rule", "positive", "negative"),
+    [("sign", 0, 39), ("pre_z", 17, 22), ("post_z", 23, 16), ("delta", 39, 0)],
+)
+def test_reference_update_polarity_rules(rule: str, positive: int, negative: int) -> None:
+    spectrum = load_spectrum(REFERENCE_JSON)
+    analysis, report = build_motif_analysis(
+        spectrum, source_artifact=REFERENCE_JSON, config=MotifConfig(pathway_polarity_rule=rule)
+    )
+    assert not report.has_errors
+    pathway = analysis.pathway
+    assert pathway["n_edges"] == 39
+    assert (pathway["n_positive"], pathway["n_negative"]) == (positive, negative)
+    assert analysis.diagnostics["pathway"]["polarity_rule"] == rule

@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "definition": "S = w_B*B + w_H*H + w_D*D - w_C*C (an undefined term is dropped)",
+    "issues": [],
+    "n_errors": 0,
+    "n_warnings": 0
+  },
+  "provenance": {
+    "created_utc": "2026-09-29T16:58:50Z",
+    "generator": "src.clustering.motif_analysis",
+    "n_artifacts": 1,
+    "n_scored": 1,
+    "phase": "04",
+    "scorer_version": "1",
+    "source_directory": "data/processed/FB4Yaffect_FB45_999prePost_001_all",
+    "stage": "04B"
+  },
+  "rankings": [
+    {
+      "abs_max": 2.345299756658418,
+      "artifact": "motifs.json",
+      "artifact_kind": "motifs",
+      "artifact_path": "data/processed/FB4Yaffect_FB45_999prePost_001_all/motifs.json",
+      "artifact_sha256": "d1170834417166f95f54d293e0774a70537bce9d030fa411a125c88a4168fb7a",
+      "balance": 0.0,
+      "concentration": 0.05584213591659331,
+      "config_hash": "e973fece",
+      "d_unavailable_reason": "mode-only: no matrix contribution",
+      "disagreement": null,
+      "entropy": 0.0,
+      "hybrid_alpha": 0.5,
+      "issues": [],
+      "n_cross": 32,
+      "n_edges": 39,
+      "n_intra": 7,
+      "n_negative": 39,
+      "n_nodes": 22,
+      "n_positive": 0,
+      "n_zero": 0,
+      "pathway_polarity_rule": "sign",
+      "pathway_source": "mode",
+      "pathway_weight_rule": "signed",
+      "rank": 1,
+      "s_score": -0.05584213591659331,
+      "stage": "04D",
+      "weight_concentration": 0.05584213591659331,
+      "weights_used": {
+        "w_balance": 1.0,
+        "w_concentration": 1.0,
+        "w_disagreement": 1.0,
+        "w_entropy": 1.0
+      }
+    }
+  ],
+  "scorer_config": {
+    "definition": "S = w_B*B + w_H*H + w_D*D - w_C*C (an undefined term is dropped)",
+    "score_hash": "7835a30e",
+    "w_balance": 1.0,
+    "w_concentration": 1.0,
+    "w_disagreement": 1.0,
+    "w_entropy": 1.0
+  },
+  "summary": {
+    "best_artifact": "motifs.json",
+    "n_artifacts": 1,
+    "n_scored": 1,
+    "n_skipped": 0,
+    "s_max": -0.05584213591659331,
+    "s_mean": -0.05584213591659331,
+    "s_min": -0.05584213591659331,
+    "worst_artifact": "motifs.json"
+  }
+}

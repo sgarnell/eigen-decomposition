@@ -167,8 +167,8 @@ metadata-only GraphML document (0 nodes, 0 edges) so the artifact set stays unif
 | Level | keys (exactly) |
 |---|---|
 | node | `group_id`, `label`, `size`, `dominant_mode`, `region_composition` (JSON), `centroid` (JSON of the group's `(k,)` participation centroid), `coherence`, `is_background`, `is_singleton` |
-| edge | `source_group`, `target_group`, `weight`, `abs_weight`, `polarity`, `contribution_by_mode` (JSON of `top_modes`), `threshold_flag`, `topN_flag`, `intra_flag`, `z_contribution` |
-| graph | `n_nodes`, `n_edges`, `weight_normalization` (`"abs-max"`), `pathway_source`, `pathway_weight_rule`, `threshold`, `topN` |
+| edge | `source_group`, `target_group`, `label`, `weight`, `abs_weight`, `polarity`, `contribution_by_mode` (JSON of `top_modes`), `threshold_flag`, `topN_flag`, `intra_flag`, `z_contribution`, `weight_ratio`, `edge_width`, `edge_color` |
+| graph | `n_nodes`, `n_edges`, `abs_max`, `weight_normalization` (`"abs-max"`), `edge_style`, `pathway_source`, `pathway_weight_rule`, `threshold`, `topN` |
 
 * `threshold_flag` / `topN_flag` are `True` for every emitted edge **by construction** (the
   artifact *is* the filtered graph); they exist for yEd filtering and future exports.
@@ -178,6 +178,52 @@ metadata-only GraphML document (0 nodes, 0 edges) so the artifact set stays unif
 * `GRAPHML_NODE_KEYS` / `GRAPHML_EDGE_KEYS` / `GRAPHML_GRAPH_KEYS` are validated against the
   built graph *before* serialisation; a write failure is `CODE_ARTIFACT_WRITE` (error, never a
   partial file). `--no-graphml` suppresses the artifact; `--dry-run` writes nothing.
+
+### 7.1 yFiles visual properties (added by the focused GraphML patch)
+
+* `label` is a plain string GraphML data field formatted `source → target: signed weight`
+  (e.g. `G04 → G01: -2.3453`); `weight`, `abs_weight`, `polarity`, `z_contribution` stay
+  **numeric**, and only `contribution_by_mode` is JSON-encoded.
+* `weight_ratio = clamp(abs_weight / abs_max, 0, 1)` and
+  `edge_width = 1.0 + 4.0 × weight_ratio ∈ [1.0, 5.0]`; `edge_color` is `#C62828` (negative),
+  `#1565C0` (positive) or `#757575` (zero).
+* After `nx.generate_graphml`, `_inject_yfiles_edge_styles` parses the document with
+  `xml.etree.ElementTree`, inserts the `xmlns:y="http://www.yworks.com/xml/graphml"` namespace
+  declaration, a fixed `yfiles_edge_graphics` `edgegraphics` key (no `attr.name` / `attr.type`,
+  matching the canonical yWorks declaration), and one `<y:PolyLineEdge>` block per edge. The
+  child elements follow the yFiles `Edge.type` `xs:sequence` order — `<y:LineStyle>` (mirrors
+  `edge_color` / `edge_width`) then `<y:Arrows>` (`source="none" target="standard"`) then
+  `<y:EdgeLabel>` (the **literal** human-readable label, not a `$label` placeholder). Edge
+  realizers use `LineStyle` / `Arrows`; `BorderStyle` is node-only and `ArrowStyle` does not
+  exist in the yFiles schema.
+* `_inject_yfiles_node_styles` then registers a fixed `yfiles_node_graphics` `nodegraphics`
+  key and appends one `<y:ShapeNode>` per node, in the yFiles `Node.type` / `ShapeNode.type`
+  `xs:sequence` order: `<y:Geometry>` (auto-sized from the label text by `node_geometry_size`
+  and placed at a deterministic grid position whose step tracks the largest box)
+  → `<y:Fill>` → `<y:BorderStyle>` → `<y:NodeLabel>` → `<y:Shape>`. The `<y:NodeLabel>` text
+  is **multi-line** (`\n`, which yEd renders as line breaks): `_graphml_node_label` returns
+  the node's `label` (the group ID) as the first line followed by one `cell_type (count)`
+  line per entry of its `region_composition` (the sorted-key JSON written by
+  `graphml_node_metadata`), ordered by descending count then ascending cell type; a missing
+  or malformed composition degrades to a single-line label. The fill / border / shape are
+  chosen by role from `is_background` / `is_singleton` (`rectangle` `#EEEEEE`/`#9E9E9E`;
+  `ellipse` `#FFF3E0`/`#EF6C00`; `roundrectangle` `#E8EEF7`/`#37474F`), so no new GraphML
+  scalar keys are introduced. The geometry is a placeholder that yEd's own layouts replace on
+  import and the hook for later size encoding.
+* Because NetworkX's reader surfaces `<y:Geometry>` / `<y:Shape>` / `<y:NodeLabel>` as the
+  `x` / `y` / `shape_type` / `label` node attributes, the round-trip tests allow exactly
+  those reader-derived keys in addition to `GRAPHML_NODE_KEYS` (`label` is already declared).
+  The reader overrides the declared scalar `label` attribute with the `<y:NodeLabel>` text,
+  so the round-trip `label` is the multi-line string and its first line is the group ID.
+* The graph element additionally records `abs_max` and `edge_style` (a sorted-key JSON
+  document with the width formula and polarity palette).
+* `networkx.read_graphml()` round-trips every ordinary scalar attribute, and the yFiles label
+  text is what its reader exposes as the edge `label`, so the readable label survives a
+  round-trip.
+* `graphml_edge_metadata(edge)` remains valid: `abs_max` is an optional keyword-only argument.
+  These fields exist only on the temporary NetworkX graph — `pathway.nodes`, `pathway.edges`,
+  the frozen JSON key sets, the NPZ arrays, `MOTIF_CONFIG_FIELDS` and `config_hash` are
+  unchanged.
 
 ## 8. Matrix-source enrichment (`--pathway-source {mode,matrix,both}`)
 

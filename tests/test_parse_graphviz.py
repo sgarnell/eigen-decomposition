@@ -504,6 +504,90 @@ def test_sha256_file_matches_hashlib(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Self-loops (--allow-self-loops)
+# ---------------------------------------------------------------------------
+SELF_LOOP = FIXTURES / "self_loop.gv"
+SELF_LOOP_MIXED = FIXTURES / "self_loop_mixed.gv"
+
+
+def test_self_loop_is_an_error_by_default() -> None:
+    _, report = build_parsed_graph(SELF_LOOP)
+    assert report.codes(parser.SEVERITY_ERROR) == [parser.CODE_SELF_LOOP]
+    assert report.codes(parser.SEVERITY_WARNING) == []
+    with pytest.raises(GraphvizValidationError):
+        parse_graphviz_file(SELF_LOOP)
+
+
+def test_allow_self_loops_downgrades_to_a_warning_and_keeps_the_pair() -> None:
+    parsed, report = build_parsed_graph(SELF_LOOP, allow_self_loops=True)
+    assert not report.has_errors
+    assert report.codes(parser.SEVERITY_WARNING) == [parser.CODE_SELF_LOOP]
+    assert "A--A" in report.warnings[0].message
+    assert [(pair.source, pair.target) for pair in parsed.pairs] == [("A", "A")]
+
+    payload = parsed.to_dict()
+    assert payload["pairs"] == [{"source": "A", "target": "A", "pre_z": 0.5, "post_z": 0.5}]
+    neurons = {neuron["neuron_id"]: neuron for neuron in payload["neurons"]}
+    assert neurons["A"]["out_degree"] == 1
+    assert neurons["A"]["in_degree"] == 1
+    assert neurons["A"]["pre_strength"] == pytest.approx(0.5)
+    assert neurons["A"]["post_strength"] == pytest.approx(0.5)
+    # a self-loop is its own reverse, so it counts once towards reciprocity
+    assert payload["metadata"]["n_pairs"] == 1
+    assert payload["metadata"]["reciprocity"] == 1
+
+
+def test_allow_self_loops_metadata_provenance() -> None:
+    assert build_parsed_graph(TINY)[0].metadata["allow_self_loops"] is False
+    allowed = build_parsed_graph(SELF_LOOP, allow_self_loops=True)[0]
+    assert allowed.metadata["allow_self_loops"] is True
+    assert allowed.to_dict()["metadata"]["allow_self_loops"] is True
+
+
+def test_mixed_dataset_keeps_normal_hubs_and_includes_self_loops() -> None:
+    parsed, report = build_parsed_graph(SELF_LOOP_MIXED, allow_self_loops=True)
+    assert not report.has_errors
+    assert report.codes(parser.SEVERITY_WARNING) == [parser.CODE_SELF_LOOP]
+    assert [(pair.source, pair.target) for pair in parsed.pairs] == [("N1", "N2"), ("N3", "N3")]
+    assert parsed.metadata["n_pairs"] == 2
+    assert parsed.metadata["n_hubs"] == 2
+
+
+def test_mixed_dataset_without_the_flag_still_rejects_the_self_loop() -> None:
+    parsed, report = build_parsed_graph(SELF_LOOP_MIXED)
+    assert report.codes(parser.SEVERITY_ERROR) == [parser.CODE_SELF_LOOP]
+    # the ordinary hub is unaffected; only the self-loop is reported
+    assert ("N1", "N2") in {(pair.source, pair.target) for pair in parsed.pairs}
+
+
+def test_allow_self_loops_payload_passes_the_schema() -> None:
+    parsed = build_parsed_graph(SELF_LOOP, allow_self_loops=True)[0]
+    assert validate_payload_schema(parsed.to_dict()) == []
+
+
+def test_cli_allow_self_loops_writes_the_artifact(tmp_path: Path) -> None:
+    code = main(["--input", str(SELF_LOOP), "--outdir", str(tmp_path), "--allow-self-loops"])
+    assert code == 0
+    artifact = tmp_path / SELF_LOOP.stem / DEFAULT_ARTIFACT_NAME
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    assert payload["pairs"] == [{"source": "A", "target": "A", "pre_z": 0.5, "post_z": 0.5}]
+    assert payload["metadata"]["allow_self_loops"] is True
+
+
+def test_cli_strict_still_rejects_allowed_self_loops(tmp_path: Path) -> None:
+    code = main(
+        [
+            "--input", str(SELF_LOOP),
+            "--outdir", str(tmp_path),
+            "--allow-self-loops",
+            "--strict",
+        ]
+    )
+    assert code == 1
+    assert list(tmp_path.iterdir()) == []
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def test_cli_writes_canonical_artifact(tmp_path: Path) -> None:
@@ -656,7 +740,18 @@ def test_cli_batch_over_the_real_dataset(tmp_path: Path) -> None:
     if not REFERENCE.is_file():  # pragma: no cover - dataset not checked out
         pytest.skip(f"reference dataset missing: {REFERENCE}")
 
-    assert main(["--input", str(REFERENCE.parent), "--outdir", str(tmp_path)]) == 0
+    # data/raw_dot also holds the hDelta[ABH] dataset, which encodes autapses
+    # (self-loops), so a whole-directory batch needs --allow-self-loops.
+    assert (
+        main(
+            [
+                "--input", str(REFERENCE.parent),
+                "--outdir", str(tmp_path),
+                "--allow-self-loops",
+            ]
+        )
+        == 0
+    )
     artifact = tmp_path / REFERENCE.stem / DEFAULT_ARTIFACT_NAME
     assert artifact.is_file()
     assert json.loads(artifact.read_text(encoding="utf-8"))["metadata"]["n_pairs"] == 1355

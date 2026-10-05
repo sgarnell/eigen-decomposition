@@ -20,6 +20,7 @@ from src.clustering.functional_motifs import (
     EDGE_KEYS,
     FAMILY_KEYS,
     GRAPHML_EDGE_KEYS,
+    GRAPHML_GRAPH_KEYS,
     GRAPHML_NODE_KEYS,
     GROUP_KEYS,
     LINK_CLASSES,
@@ -69,7 +70,7 @@ def test_key_sets_are_exactly_the_frozen_ones() -> None:
     assert len(PROVENANCE_KEYS) == 11
     assert len(MOTIF_KEYS) == 22
     assert len(MEMBER_KEYS) == 10
-    assert len(CONFIG_KEYS) == 30  # 26 hashed + k_resolved + n_motifs + stage + config_hash
+    assert len(CONFIG_KEYS) == 33  # 29 hashed + k_resolved + n_motifs + stage + config_hash
     assert set(LINK_KEYS) == {
         "source_mode",
         "target_mode",
@@ -96,6 +97,26 @@ def test_key_sets_are_exactly_the_frozen_ones() -> None:
     assert "is_background" in GROUP_KEYS and "coherence" in GROUP_KEYS
     assert "weight_concentration" in PATHWAY_KEYS
     assert STAGES == ("04A", "04B", "04C", "04D")
+
+
+def test_update_a_key_sets() -> None:
+    """04D update A adds 3 hashed config fields and 3 GraphML graph keys -- nothing else."""
+    assert len(CONFIG_KEYS) == 33
+    assert {
+        "pathway_weight_rule",
+        "pathway_polarity_rule",
+        "pathway_hybrid_alpha",
+    } <= CONFIG_KEYS
+    assert len(GRAPHML_GRAPH_KEYS) == 12
+    assert GRAPHML_GRAPH_KEYS[-3:] == (
+        "pathway_unified_weight_rule",
+        "pathway_polarity_rule",
+        "pathway_hybrid_alpha",
+    )
+    # the frozen payload/edge/node sets are untouched by the update
+    assert len(PATHWAY_KEYS) == 16
+    assert len(GRAPHML_EDGE_KEYS) == 14
+    assert len(GRAPHML_NODE_KEYS) == 9
 
 
 def test_valid_payload_conforms(payload: dict) -> None:
@@ -304,19 +325,54 @@ def test_graphml_matches_the_payload(payload: dict, tmp_path: Path) -> None:
     assert graph.graph["pathway_weight_rule"] == pathway["weight"]
     assert graph.graph["threshold"] == pathway["edge_threshold"]
     assert graph.graph["topN"] == pathway["top_edges"]
+    assert graph.graph["abs_max"] == pathway["abs_max"]
+    assert set(graph.graph) - {"node_default", "edge_default"} <= set(GRAPHML_GRAPH_KEYS)
+    edge_style = json.loads(graph.graph["edge_style"])
+    assert edge_style["width_min"] == 1.0 and edge_style["width_max"] == 5.0
+    assert edge_style["color_by_polarity"] == {
+        "-1": "#C62828",
+        "0": "#757575",
+        "1": "#1565C0",
+    }
     for node in pathway["nodes"]:
         attributes = graph.nodes[node["node_id"]]
-        assert set(attributes) <= set(GRAPHML_NODE_KEYS)
+        # x/y/shape_type are derived by NetworkX from the yFiles nodegraphics block, not
+        # written by the writer as scalar keys.
+        derived = {"x", "y", "shape_type"}
+        assert set(attributes) - derived <= set(GRAPHML_NODE_KEYS)
+        assert set(attributes) & derived <= derived
+        assert attributes["shape_type"] in {"rectangle", "roundrectangle", "ellipse"}
         assert attributes["group_id"] == node["group_id"]
+        # NetworkX's reader overrides the declared scalar ``label`` attribute with the
+        # yFiles ``NodeLabel`` text, which is now multi-line (group id + region
+        # composition: count descending, then cell type A-Z).
+        lines = attributes["label"].split("\n")
+        assert lines[0] == node["label"]
+        assert lines[1:] == [
+            f"{cell} ({count})"
+            for cell, count in sorted(
+                node["region_composition"].items(), key=lambda item: (-item[1], item[0])
+            )
+        ]
+        assert attributes["label"] and attributes["label"] != "None"
         assert attributes["size"] == node["size"]
         assert json.loads(attributes["region_composition"]) == node["region_composition"]
+    abs_max = pathway["abs_max"]
     for edge in pathway["edges"]:
         attributes = graph.edges[edge["source"], edge["target"]]
         assert set(attributes) <= set(GRAPHML_EDGE_KEYS)
+        assert attributes["label"] == (
+            f"{edge['source']} \u2192 {edge['target']}: {edge['weight']:+.4f}"
+        )
         assert attributes["weight"] == edge["weight"]
+        assert attributes["abs_weight"] == edge["abs_weight"]
         assert attributes["polarity"] == edge["polarity"]
         assert attributes["intra_flag"] == edge["is_intra"]
         assert json.loads(attributes["contribution_by_mode"]) == edge["top_modes"]
+        expected_ratio = min(1.0, edge["abs_weight"] / abs_max) if abs_max > 0.0 else 0.0
+        assert attributes["weight_ratio"] == pytest.approx(expected_ratio)
+        assert attributes["edge_width"] == pytest.approx(1.0 + 4.0 * expected_ratio)
+        assert attributes["edge_color"] in {"#C62828", "#1565C0", "#757575"}
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +433,11 @@ NEGATIVE_CASES = [
     ("config hash length", lambda p: p["config"].__setitem__("config_hash", "abc"), "config.config_hash", False),
     ("config invalid participation", lambda p: p["config"].__setitem__("participation", "bogus"), "config.participation", False),
     ("config invalid method", lambda p: p["config"].__setitem__("threshold_method", "bogus"), "config.threshold_method", False),
+    ("config missing weight rule", lambda p: p["config"].pop("pathway_weight_rule"), "config: missing", False),
+    ("config invalid weight rule", lambda p: p["config"].__setitem__("pathway_weight_rule", "bogus"), "config.pathway_weight_rule", False),
+    ("config invalid polarity rule", lambda p: p["config"].__setitem__("pathway_polarity_rule", "bogus"), "config.pathway_polarity_rule", False),
+    ("config invalid hybrid alpha", lambda p: p["config"].__setitem__("pathway_hybrid_alpha", 1.5), "config.pathway_hybrid_alpha", False),
+    ("config non numeric hybrid alpha", lambda p: p["config"].__setitem__("pathway_hybrid_alpha", "half"), "config.pathway_hybrid_alpha", False),
     ("duplicate neuron ids", lambda p: p["neuron_order"].__setitem__(1, "n0"), "duplicate", False),
     ("neuron_order not a list", lambda p: p.__setitem__("neuron_order", {"n0": 0}), "neuron_order", False),
     ("empty motifs", lambda p: p.__setitem__("motifs", []), "motifs: expected", False),

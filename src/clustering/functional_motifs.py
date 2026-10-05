@@ -7,7 +7,12 @@ strongly, and with which polarity.  Sub-phase 04B adds the **cross-mode layer**
 ``family_members``); 04C adds the **functional neuron groups** (``build_groups``); 04D
 adds the **pathway graph**: signed group-to-group contributions aggregated from the
 per-mode outer products (optionally enriched with the raw Phase 02 matrix) and exported
-as a NetworkX GraphML document for interactive exploration in yEd.
+as a NetworkX GraphML document for interactive exploration in yEd.  Edges carry scalar
+metadata, human-readable labels, and deterministic yFiles visual properties that map
+absolute weight to line width and signed polarity to color; nodes carry a yFiles
+``nodegraphics`` realizer whose multi-line label lists the group id followed by each
+``cell_type (count)`` of its region composition, with role-based (background / singleton /
+default) fill, border and shape.
 
 Pipeline (fixed and recorded in every artifact)::
 
@@ -91,6 +96,7 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Iterable, Sequence
+from xml.etree import ElementTree as ET
 
 import numpy as np
 
@@ -129,6 +135,8 @@ __all__ = [
     "CODE_PARTITION",
     "CODE_BACKGROUND",
     "CODE_PATHWAY_SKIPPED",
+    "CODE_POLARITY_RULE",
+    "CODE_WEIGHT_RULE",
     "CODE_SINGLETON",
     "CODE_ZERO_VECTOR",
     "CODE_PAYLOAD_SCHEMA",
@@ -141,6 +149,9 @@ __all__ = [
     "DEFAULT_INPUT_PATTERN",
     "DEFAULT_MAX_MEMBERS",
     "DEFAULT_MIN_MEMBERS",
+    "DEFAULT_PATHWAY_HYBRID_ALPHA",
+    "DEFAULT_PATHWAY_POLARITY_RULE",
+    "DEFAULT_PATHWAY_WEIGHT_RULE",
     "DEFAULT_PARTICIPATION",
     "DEFAULT_PARTICIPATION_THRESHOLD",
     "DEFAULT_QUANTILE",
@@ -168,9 +179,11 @@ __all__ = [
     "OCCURRENCE_KEYS",
     "PARTICIPATIONS",
     "PATHWAY_KEYS",
+    "PATHWAY_POLARITY_RULES",
     "PATHWAY_THRESHOLD_SWEEP",
     "PATHWAY_TOP_MODES",
     "PATHWAY_WEIGHT_NORMALIZATION",
+    "PATHWAY_WEIGHT_RULES",
     "PHASE",
     "PROVENANCE_KEYS",
     "SAVE_DATA_KEYS",
@@ -221,11 +234,15 @@ __all__ = [
     "motif_membership",
     "motif_statistics",
     "motif_thresholds",
+    "needs_pathway_matrix",
+    "node_geometry_size",
     "pathway_matrix_path",
     "recurrence_table",
     "render_statistics",
     "render_summary_box",
+    "resolve_edge_polarity",
     "resolve_inputs",
+    "resolve_unified_weight",
     "save_data_payload",
     "sidecar_path",
     "validate_motif_payload_schema",
@@ -280,6 +297,9 @@ DEFAULT_PATHWAY_SOURCE = "mode"
 DEFAULT_PATHWAY_WEIGHT = "evr"
 DEFAULT_PATHWAY_EDGE_THRESHOLD = 0.1
 DEFAULT_PATHWAY_TOP_EDGES = 5
+DEFAULT_PATHWAY_WEIGHT_RULE = "signed"
+DEFAULT_PATHWAY_POLARITY_RULE = "sign"
+DEFAULT_PATHWAY_HYBRID_ALPHA = 0.5
 DEFAULT_INTRA = True
 DEFAULT_MAX_DIAGRAM_NODES = 24
 DEFAULT_DIAGRAM_LAYOUT = "circular"
@@ -289,6 +309,13 @@ LINKAGES = ("average", "complete", "single", "ward")
 AFFINITIES = ("cosine", "euclidean")
 PATHWAY_SOURCES = ("mode", "matrix", "both")
 PATHWAY_WEIGHTS = ("evr", "energy", "uniform", "value", "abs_value")
+#: Transforms applied to the aggregated (G, G) contribution before thresholding and
+#: top-N selection.  ``signed`` is the historical behaviour; see the 04D update plan.
+PATHWAY_WEIGHT_RULES = (
+    "signed", "abs", "positive", "negative", "mode-only", "matrix-only", "hybrid",
+)
+#: Rules that assign the edge polarity (and therefore the GraphML edge colour).
+PATHWAY_POLARITY_RULES = ("sign", "post_z", "pre_z", "delta")
 DIAGRAM_LAYOUTS = ("circular", "spring", "kamada_kawai", "shell")
 #: Cross-mode link classifications (04B), in canonical report order.
 LINK_CLASSES = ("stable", "flipped", "composite", "weak")
@@ -307,6 +334,56 @@ PATHWAY_THRESHOLD_SWEEP = (0.05, 0.1, 0.2, 0.25)
 MATRIX_INPUT_PREFIX = "z_matrix"
 #: XML declaration prepended to the NetworkX GraphML body.
 XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8"?>'
+#: Namespace of the yFiles/yEd GraphML visual-properties extension.
+YFILES_GRAPHML_NAMESPACE = "http://www.yworks.com/xml/graphml"
+#: GraphML namespace (NetworkX emits it as the default namespace).
+GRAPHML_NAMESPACE = "http://graphml.graphdrawing.org/xmlns"
+#: Fixed key id of the per-edge yFiles edge-graphics style block.  A fixed, human-readable
+#: id is deliberate: the deterministic GraphML tests compare complete documents.
+GRAPHML_EDGE_STYLE_KEY = "yfiles_edge_graphics"
+#: yFiles line-width bounds (points) used by the weight-derived edge style.
+GRAPHML_EDGE_WIDTH_MIN = 1.0
+GRAPHML_EDGE_WIDTH_MAX = 5.0
+#: Polarity -> edge colour: negative red, positive blue, neutral gray.
+GRAPHML_EDGE_COLORS = {-1: "#C62828", 0: "#757575", 1: "#1565C0"}
+#: Fixed key id of the per-node yFiles node-graphics style block (mirrors the edge key).
+GRAPHML_NODE_STYLE_KEY = "yfiles_node_graphics"
+#: yFiles node border width (points).
+GRAPHML_NODE_BORDER_WIDTH = 1.0
+#: yFiles node label font size (points) -- must match the ``fontSize`` attribute emitted on
+#: the ``NodeLabel`` so the auto-sized box agrees with the rendered text.
+GRAPHML_NODE_FONT_SIZE = 12.0
+#: yFiles default line-spacing multiplier applied to :data:`GRAPHML_NODE_FONT_SIZE`.
+GRAPHML_NODE_LINE_SPACING = 1.2
+#: Average glyph advance for the 12 pt Dialog font (points per character).  A heuristic by
+#: design: a real font metric would be platform-dependent and break byte-reproducibility.
+GRAPHML_NODE_CHAR_WIDTH = 7.0
+#: Padding around the label text (points), split equally on each side.  The vertical padding
+#: is chosen so a single-line 12 pt label stays inside :data:`GRAPHML_NODE_MIN_HEIGHT`
+#: (``1 x 12 x 1.2 + 2 x 7.0 = 28.4 <= 30``), preserving the pre-auto-sizing 80 x 30 box for
+#: short labels.
+GRAPHML_NODE_PADDING_X = 10.0
+GRAPHML_NODE_PADDING_Y = 7.0
+#: Floor of the auto-sized node realizer box (points), so a tiny label stays clickable in
+#: yEd.  These were the fixed constants before the box became label-derived.
+GRAPHML_NODE_MIN_WIDTH = 80.0
+GRAPHML_NODE_MIN_HEIGHT = 30.0
+#: Backwards-compatible aliases of the box floor (the pre-auto-sizing fixed box).
+GRAPHML_NODE_WIDTH = GRAPHML_NODE_MIN_WIDTH
+GRAPHML_NODE_HEIGHT = GRAPHML_NODE_MIN_HEIGHT
+#: Spacing between grid cells for the deterministic placeholder node layout (points).
+GRAPHML_NODE_GRID_GAP = 40.0
+#: Separator between the lines of the multi-line yFiles node label.  yEd renders ``"\n"``
+#: inside a ``NodeLabel`` as a line break, so a single label can show the group id followed
+#: by one ``cell_type (count)`` line per entry of the node's ``region_composition``.
+GRAPHML_NODE_LABEL_SEPARATOR = "\n"
+#: Node role -> (fill colour, border colour, yFiles shape type).  The role is derived from
+#: ``is_background`` / ``is_singleton``, so no new GraphML scalar keys are needed.
+GRAPHML_NODE_STYLES = {
+    "background": ("#EEEEEE", "#9E9E9E", "rectangle"),
+    "singleton": ("#FFF3E0", "#EF6C00", "ellipse"),
+    "default": ("#E8EEF7", "#37474F", "roundrectangle"),
+}
 #: The exact GraphML attribute key sets (validated before serialisation).
 GRAPHML_NODE_KEYS = (
     "group_id",
@@ -322,6 +399,7 @@ GRAPHML_NODE_KEYS = (
 GRAPHML_EDGE_KEYS = (
     "source_group",
     "target_group",
+    "label",
     "weight",
     "abs_weight",
     "polarity",
@@ -330,18 +408,27 @@ GRAPHML_EDGE_KEYS = (
     "topN_flag",
     "intra_flag",
     "z_contribution",
+    "weight_ratio",
+    "edge_width",
+    "edge_color",
 )
 GRAPHML_GRAPH_KEYS = (
     "n_nodes",
     "n_edges",
+    "abs_max",
     "weight_normalization",
+    "edge_style",
     "pathway_source",
     "pathway_weight_rule",
     "threshold",
     "topN",
+    # 04D update A -- note that ``pathway_weight_rule`` above is the *mode* rule.
+    "pathway_unified_weight_rule",
+    "pathway_polarity_rule",
+    "pathway_hybrid_alpha",
 )
 
-#: The 26 hashed Phase 04 config fields (section 11 of the plan).
+#: The 29 hashed Phase 04 config fields (section 11 of the plan).
 MOTIF_CONFIG_FIELDS = (
     "participation",
     "threshold_method",
@@ -366,6 +453,9 @@ MOTIF_CONFIG_FIELDS = (
     "pathway_weight",
     "pathway_edge_threshold",
     "pathway_top_edges",
+    "pathway_weight_rule",
+    "pathway_polarity_rule",
+    "pathway_hybrid_alpha",
     "intra",
     "max_diagram_nodes",
     "diagram_layout",
@@ -649,6 +739,8 @@ CODE_MATRIX_MISSING = "matrix_missing"
 CODE_MATRIX_MISMATCH = "matrix_mismatch"
 CODE_MODE_WEIGHTS = "mode_weights"
 CODE_PATHWAY_SKIPPED = "pathway_skipped"
+CODE_WEIGHT_RULE = "weight_rule"
+CODE_POLARITY_RULE = "polarity_rule"
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -685,6 +777,9 @@ class MotifConfig:
     pathway_weight: str = DEFAULT_PATHWAY_WEIGHT
     pathway_edge_threshold: float = DEFAULT_PATHWAY_EDGE_THRESHOLD
     pathway_top_edges: int = DEFAULT_PATHWAY_TOP_EDGES
+    pathway_weight_rule: str = DEFAULT_PATHWAY_WEIGHT_RULE
+    pathway_polarity_rule: str = DEFAULT_PATHWAY_POLARITY_RULE
+    pathway_hybrid_alpha: float = DEFAULT_PATHWAY_HYBRID_ALPHA
     intra: bool = DEFAULT_INTRA
     max_diagram_nodes: int = DEFAULT_MAX_DIAGRAM_NODES
     diagram_layout: str = DEFAULT_DIAGRAM_LAYOUT
@@ -694,7 +789,7 @@ class MotifConfig:
     stage: str = STAGE
 
     def hash_fields(self) -> dict[str, Any]:
-        """The 26 config-defining fields hashed into ``config_hash``.
+        """The 29 config-defining fields hashed into ``config_hash``.
 
         Built directly (never via :meth:`to_dict`) -- ``to_dict`` adds the derived
         keys, and hashing them would make the hash depend on the data.
@@ -2360,12 +2455,136 @@ def group_pair_contributions(outer_products: Any, group_labels: Any, weights: An
     return np.asarray(out, dtype="<f8")
 
 
+def needs_pathway_matrix(config: MotifConfig) -> bool:
+    """True when the selected rules require the sibling Phase 02 matrix artifact.
+
+    Shared by :func:`build_motif_analysis` (which loads the artifact) and
+    :func:`resolve_unified_weight` (which refuses to degrade silently).
+    """
+    rule = str(config.pathway_weight_rule)
+    inherits_source = rule in ("signed", "abs", "positive", "negative")
+    return bool(
+        rule in ("matrix-only", "hybrid")
+        or (inherits_source and str(config.pathway_source) in ("matrix", "both"))
+        or str(config.pathway_polarity_rule) == "delta"
+    )
+
+
+def resolve_unified_weight(
+    mode_matrix: Any,
+    matrix_matrix: Any = None,
+    *,
+    source: str = DEFAULT_PATHWAY_SOURCE,
+    rule: str = DEFAULT_PATHWAY_WEIGHT_RULE,
+    alpha: float = DEFAULT_PATHWAY_HYBRID_ALPHA,
+) -> dict[str, Any]:
+    """Return the ``(G, G)`` filter/viz weights and diagnostics for *rule*.
+
+    ``W_filter`` drives thresholding and top-N ranking, ``W_viz`` is the stored edge
+    weight.  ``rule == "signed"`` (the default) reproduces the historical recipe and defers
+    to ``--pathway-source``; any other rule overrides the source selection (``abs`` /
+    ``positive`` / ``negative`` keep the source's raw weight as ``W_viz``).
+    """
+    mode = np.asarray(mode_matrix, dtype=np.float64)
+    if mode.ndim != 2 or mode.shape[0] != mode.shape[1]:
+        raise MotifValidationError("the mode contribution must be a square (G, G) matrix")
+    if rule not in PATHWAY_WEIGHT_RULES:
+        raise MotifValidationError(
+            f"unknown pathway weight rule {rule!r}; expected one of {PATHWAY_WEIGHT_RULES}"
+        )
+    if source not in PATHWAY_SOURCES:
+        raise MotifValidationError(f"pathway_source {source!r} is not one of {PATHWAY_SOURCES}")
+    ratio = float(alpha)
+    if not math.isfinite(ratio) or not 0.0 <= ratio <= 1.0:
+        raise MotifValidationError(f"pathway_hybrid_alpha must be in [0, 1], got {alpha}")
+    matrix = None if matrix_matrix is None else np.asarray(matrix_matrix, dtype=np.float64)
+    if matrix is not None and matrix.shape != mode.shape:
+        raise MotifValidationError(
+            f"[{CODE_MATRIX_MISMATCH}] the matrix contribution shape {matrix.shape} does not "
+            f"match the mode contribution shape {mode.shape}"
+        )
+    needs_matrix = rule in ("matrix-only", "hybrid") or (
+        rule in ("signed", "abs", "positive", "negative") and source in ("matrix", "both")
+    )
+    if needs_matrix and matrix is None:
+        raise MotifValidationError(
+            f"[{CODE_MATRIX_MISSING}] --pathway-weight-rule {rule} with "
+            f"--pathway-source {source} needs the Phase 02 z_matrix artifact; use "
+            f"--pathway-weight-rule signed --pathway-source mode to run without it"
+        )
+    if rule == "mode-only":
+        resolved, resolved_source = mode, "mode"
+    elif rule == "matrix-only":
+        resolved, resolved_source = matrix, "matrix"
+    elif rule == "hybrid":
+        resolved, resolved_source = ratio * mode + (1.0 - ratio) * matrix, "hybrid"
+    elif source == "matrix":
+        resolved, resolved_source = matrix, "matrix"
+    elif source == "both":
+        resolved, resolved_source = mode + matrix, "both"
+    else:
+        resolved, resolved_source = mode, "mode"
+    if rule == "abs":
+        filter_matrix = np.abs(resolved)
+    elif rule == "positive":
+        filter_matrix = np.maximum(resolved, 0.0)
+    elif rule == "negative":
+        filter_matrix = np.minimum(resolved, 0.0)
+    else:
+        filter_matrix = resolved
+    filter_array = np.asarray(filter_matrix, dtype="<f8")
+    viz_array = np.asarray(resolved, dtype="<f8")
+    return {
+        "filter": filter_array,
+        "viz": viz_array,
+        "abs_max": float(np.abs(filter_array).max()) if filter_array.size else 0.0,
+        "resolved": str(resolved_source),
+        "rule": str(rule),
+        "needs_matrix": bool(needs_matrix),
+    }
+
+
+def resolve_edge_polarity(
+    *,
+    rule: str = DEFAULT_PATHWAY_POLARITY_RULE,
+    viz_weight: float = 0.0,
+    mode_weight: float = 0.0,
+    matrix_weight: float = 0.0,
+    source_signed: float = 0.0,
+    target_signed: float = 0.0,
+) -> int:
+    """Return the edge polarity in ``{-1, 0, +1}`` for *rule*.
+
+    ``sign`` (the default) reproduces the historical ``int(np.sign(weight))``.  ``pre_z`` /
+    ``post_z`` use the group-level sum of the *signed* participation, so an edge inherits
+    the polarity of its source (resp. target) group -- a whole row/column shares one colour.
+    ``delta`` compares the two candidate contributions edge-locally.
+    """
+    if rule not in PATHWAY_POLARITY_RULES:
+        raise MotifValidationError(
+            f"unknown pathway polarity rule {rule!r}; expected one of {PATHWAY_POLARITY_RULES}"
+        )
+    if rule == "sign":
+        value = float(viz_weight)
+    elif rule == "pre_z":
+        value = float(source_signed)
+    elif rule == "post_z":
+        value = float(target_signed)
+    else:
+        value = float(mode_weight) - float(matrix_weight)
+    if not math.isfinite(value):
+        raise MotifValidationError(f"the {rule} polarity rule produced a non-finite value")
+    return int(np.sign(value))
+
+
 def filter_pathway_edges(
     contributions: Any,
     *,
     edge_threshold: float = DEFAULT_PATHWAY_EDGE_THRESHOLD,
     top_edges: int = DEFAULT_PATHWAY_TOP_EDGES,
     intra: bool = DEFAULT_INTRA,
+    mode_contribution: Any = None,
+    matrix_contribution: Any = None,
 ) -> tuple[list[tuple[int, int, float]], dict[str, Any]]:
     """Threshold and top-N filter a ``(G, G)`` contribution matrix.
 
@@ -2373,7 +2592,8 @@ def filter_pathway_edges(
     the whole matrix), so the stored weights stay raw and the scale never shifts with
     ``intra``/top-N.  Returns the kept ``(source, target, weight)`` triples ordered by
     ``(source, target)`` plus the pathway statistics (including the diagnostics-only
-    threshold sweep).
+    threshold sweep).  *mode_contribution* / *matrix_contribution* are diagnostics-only and
+    never affect which edges are kept.
     """
     matrix = np.asarray(contributions, dtype=np.float64)
     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
@@ -2419,9 +2639,19 @@ def filter_pathway_edges(
         "weight_concentration": (abs_max / total) if total > 0.0 else 0.0,
         "threshold_sweep": sweep,
         "per_source_counts": dict(sorted(per_source.items())),
+        "abs_max_mode": _max_abs(mode_contribution),
+        "abs_max_matrix": _max_abs(matrix_contribution),
         "weights": weights,
     }
     return kept, stats
+
+
+def _max_abs(matrix: Any) -> float:
+    """Diagnostics-only ``max|matrix|`` that tolerates ``None`` and empty input."""
+    if matrix is None:
+        return 0.0
+    array = np.asarray(matrix, dtype=np.float64)
+    return float(np.abs(array).max()) if array.size else 0.0
 
 
 def _top_mode_records(values: Any, limit: int) -> list[dict[str, Any]]:
@@ -2478,6 +2708,12 @@ def build_pathway(
             "per_source_counts": {},
             "mode_weights": [],
             "z_contributions": {},
+            "weight_rule": str(config.pathway_weight_rule),
+            "polarity_rule": str(config.pathway_polarity_rule),
+            "hybrid_alpha": float(config.pathway_hybrid_alpha),
+            "abs_max_mode": 0.0,
+            "abs_max_matrix": 0.0,
+            "abs_max_raw": 0.0,
         }
     profile_matrix = np.asarray(participation, dtype=np.float64)
     left = np.asarray(loadings_left, dtype=np.float64)
@@ -2505,30 +2741,57 @@ def build_pathway(
     mode_matrix = group_pair_contributions(stack, labels, weights)
     requested = str(config.pathway_source)
     matrix_matrix: np.ndarray | None = None
-    if matrix is not None and requested in ("matrix", "both"):
+    if matrix is not None:
         z_values = np.asarray(matrix, dtype=np.float64)
         if z_values.shape != (len(neuron_ids), len(neuron_ids)):
             raise MotifValidationError(
                 "[matrix_mismatch] the Phase 02 matrix shape does not match the neuron order"
             )
         matrix_matrix = _group_pair_sum(z_values, labels, len(groups))
-    if matrix_matrix is None:
-        resolved = "mode"
-        contributions = mode_matrix
-    elif requested == "matrix":
-        resolved = "matrix"
-        contributions = matrix_matrix
-    else:
-        resolved = "both"
-        contributions = mode_matrix + matrix_matrix
+    unified = resolve_unified_weight(
+        mode_matrix,
+        matrix_matrix,
+        source=requested,
+        rule=str(config.pathway_weight_rule),
+        alpha=float(config.pathway_hybrid_alpha),
+    )
+    resolved = str(unified["resolved"])
+    filter_matrix = unified["filter"]
+    viz_matrix = unified["viz"]
+    weight_rule = str(config.pathway_weight_rule)
+    polarity_rule = str(config.pathway_polarity_rule)
+    if weight_rule != DEFAULT_PATHWAY_WEIGHT_RULE and requested != DEFAULT_PATHWAY_SOURCE:
+        LOGGER.info(
+            "[%s] --pathway-weight-rule %s overrides --pathway-source %s (resolved source: %s)",
+            CODE_WEIGHT_RULE, weight_rule, requested, resolved,
+        )
+    if polarity_rule in ("pre_z", "post_z"):
+        LOGGER.info(
+            "[%s] polarity rule %s is group-level: every edge inherits its %s group's "
+            "signed-participation sign, so that %s of the graph shares one colour",
+            CODE_POLARITY_RULE, polarity_rule,
+            "source" if polarity_rule == "pre_z" else "target",
+            "row" if polarity_rule == "pre_z" else "column",
+        )
+    if weight_rule == "matrix-only":
+        LOGGER.info(
+            "[%s] --pathway-weight-rule matrix-only: no mode contributes, so the per-edge "
+            "'modes' list is empty", CODE_WEIGHT_RULE,
+        )
     kept, stats = filter_pathway_edges(
-        contributions,
+        filter_matrix,
         edge_threshold=config.pathway_edge_threshold,
         top_edges=config.pathway_top_edges,
         intra=bool(config.intra),
+        mode_contribution=mode_matrix,
+        matrix_contribution=matrix_matrix,
     )
     signs = _dominant_signs(left, right)
     signed = profile_matrix * signs
+    neuron_signed = signed.sum(axis=1)
+    group_signed = [
+        float(neuron_signed[members].sum()) if members else 0.0 for members in group_members
+    ]
     nodes: list[dict[str, Any]] = []
     for index, record in enumerate(group_records):
         members = group_members[index]
@@ -2553,9 +2816,11 @@ def build_pathway(
     z_contributions: dict[tuple[str, str], float] = {}
     seen: set[tuple[str, str]] = set()
     threshold_value = float(config.pathway_edge_threshold)
-    for source_index, target_index, weight in kept:
+    for source_index, target_index, filter_weight in kept:
         source_id = node_ids[source_index]
         target_id = node_ids[target_index]
+        viz_weight = float(viz_matrix[source_index, target_index])
+        magnitude = abs(float(filter_weight))
         by_mode = np.zeros(retained.size, dtype=np.float64)
         if resolved != "matrix":
             rows = group_members[source_index]
@@ -2574,18 +2839,29 @@ def build_pathway(
         if key in seen:
             raise MotifValidationError(f"duplicate pathway edge {key}")
         seen.add(key)
-        if abs(weight) < threshold_value * float(stats["abs_max"]) - 1e-12:
+        if magnitude < threshold_value * float(stats["abs_max"]) - 1e-12:
             raise MotifValidationError(f"the pathway edge {key} violates the edge threshold")
+        polarity = resolve_edge_polarity(
+            rule=polarity_rule,
+            viz_weight=viz_weight,
+            mode_weight=float(mode_matrix[source_index, target_index]),
+            matrix_weight=(
+                float(matrix_matrix[source_index, target_index])
+                if matrix_matrix is not None else 0.0
+            ),
+            source_signed=group_signed[source_index],
+            target_signed=group_signed[target_index],
+        )
         edges.append(
             {
                 "source": source_id,
                 "target": target_id,
-                "weight": float(weight),
-                "abs_weight": abs(float(weight)),
+                "weight": float(viz_weight),
+                "abs_weight": magnitude,
                 "n_modes": len(modes),
                 "modes": modes,
                 "is_intra": bool(source_index == target_index),
-                "polarity": int(np.sign(weight)),
+                "polarity": int(polarity),
                 "top_modes": _top_mode_records(by_mode, PATHWAY_TOP_MODES),
             }
         )
@@ -2602,8 +2878,8 @@ def build_pathway(
         top_edges=int(config.pathway_top_edges),
         intra=bool(config.intra),
         abs_max=float(stats["abs_max"]),
-        n_positive=int(stats["n_positive"]),
-        n_negative=int(stats["n_negative"]),
+        n_positive=sum(1 for edge in edges if edge["polarity"] > 0),
+        n_negative=sum(1 for edge in edges if edge["polarity"] < 0),
         n_intra=int(stats["n_intra"]),
         n_cross=int(stats["n_cross"]),
         weight_concentration=float(stats["weight_concentration"]),
@@ -2617,6 +2893,12 @@ def build_pathway(
         "per_source_counts": dict(stats["per_source_counts"]),
         "mode_weights": [float(value) for value in weights],
         "z_contributions": dict(z_contributions),
+        "weight_rule": weight_rule,
+        "polarity_rule": polarity_rule,
+        "hybrid_alpha": float(config.pathway_hybrid_alpha),
+        "abs_max_mode": float(stats["abs_max_mode"]),
+        "abs_max_matrix": float(stats["abs_max_matrix"]),
+        "abs_max_raw": _max_abs(viz_matrix),
     }
     return diagram, diagnostics
 
@@ -2902,6 +3184,21 @@ def _validate_config(config: MotifConfig, report: ValidationReport) -> None:
         )
     if int(config.pathway_top_edges) < 1:
         report.error(CODE_CONFIG, f"pathway_top_edges must be >= 1, got {config.pathway_top_edges}")
+    if config.pathway_weight_rule not in PATHWAY_WEIGHT_RULES:
+        report.error(
+            CODE_CONFIG,
+            f"pathway_weight_rule {config.pathway_weight_rule!r} is not one of {PATHWAY_WEIGHT_RULES}",
+        )
+    if config.pathway_polarity_rule not in PATHWAY_POLARITY_RULES:
+        report.error(
+            CODE_CONFIG,
+            f"pathway_polarity_rule {config.pathway_polarity_rule!r} is not one of {PATHWAY_POLARITY_RULES}",
+        )
+    if not math.isfinite(float(config.pathway_hybrid_alpha)) or not 0.0 <= float(config.pathway_hybrid_alpha) <= 1.0:
+        report.error(
+            CODE_CONFIG,
+            f"pathway_hybrid_alpha must be in [0, 1], got {config.pathway_hybrid_alpha}",
+        )
     if int(config.max_diagram_nodes) < 1:
         report.error(CODE_CONFIG, f"max_diagram_nodes must be >= 1, got {config.max_diagram_nodes}")
 
@@ -3111,7 +3408,7 @@ def build_motif_analysis(
         if singleton_count:
             LOGGER.info("[%s] %d non-background singleton group(s)", CODE_SINGLETON, singleton_count)
         pathway_matrix = None
-        if str(config.pathway_source) in ("matrix", "both"):
+        if needs_pathway_matrix(config):
             matrix_candidate = pathway_matrix_path(source_path)
             try:
                 matrix_values, matrix_order = load_pathway_matrix(source_path)
@@ -3208,6 +3505,26 @@ def validate_motif_payload_schema(payload: dict[str, Any]) -> list[str]:
         if config.get("threshold_method") not in THRESHOLD_METHODS:
             problems.append(
                 f"config.threshold_method: {config.get('threshold_method')!r} is not one of {THRESHOLD_METHODS}"
+            )
+        if config.get("pathway_weight_rule") not in PATHWAY_WEIGHT_RULES:
+            problems.append(
+                f"config.pathway_weight_rule: {config.get('pathway_weight_rule')!r} "
+                f"is not one of {PATHWAY_WEIGHT_RULES}"
+            )
+        if config.get("pathway_polarity_rule") not in PATHWAY_POLARITY_RULES:
+            problems.append(
+                f"config.pathway_polarity_rule: {config.get('pathway_polarity_rule')!r} "
+                f"is not one of {PATHWAY_POLARITY_RULES}"
+            )
+        alpha = config.get("pathway_hybrid_alpha")
+        if (
+            isinstance(alpha, bool)
+            or not isinstance(alpha, (int, float))
+            or not math.isfinite(float(alpha))
+            or not 0.0 <= float(alpha) <= 1.0
+        ):
+            problems.append(
+                f"config.pathway_hybrid_alpha: expected a number in [0, 1], got {alpha!r}"
             )
 
     neuron_order = payload.get("neuron_order")
@@ -3489,6 +3806,141 @@ def _write_text_atomic(path: str | Path, text: str) -> Path:
     return destination
 
 
+def _required_graphml_text(value: Any, *, field_name: str, context: str) -> str:
+    """Return a non-empty GraphML text value or raise a contextual error.
+
+    Guards against the ``str(None) == "None"`` trap: an absent identifier must fail loudly
+    rather than serialise as the literal string ``"None"``.
+    """
+    if value is None:
+        raise MotifValidationError(f"{context} {field_name!r} must not be None")
+    text = str(value).strip()
+    if not text or text == "None":
+        raise MotifValidationError(
+            f"{context} {field_name!r} must be a non-empty string other than 'None'"
+        )
+    return text
+
+
+def _graphml_edge_label(source: str, target: str, weight: float) -> str:
+    """Return a stable human-readable label for a signed pathway edge."""
+    formatted_weight = "0.0000" if weight == 0.0 else f"{weight:+.4f}"
+    return f"{source} \u2192 {target}: {formatted_weight}"
+
+
+def _graphml_edge_width(abs_weight: float, abs_max: float) -> tuple[float, float]:
+    """Return ``(weight_ratio, yfiles_width)`` for an edge.
+
+    ``weight_ratio`` is ``abs_weight / abs_max`` clamped to ``[0, 1]`` (``0`` when
+    ``abs_max`` is non-positive or non-finite); the width interpolates linearly between
+    :data:`GRAPHML_EDGE_WIDTH_MIN` and :data:`GRAPHML_EDGE_WIDTH_MAX`.
+    """
+    if abs_max > 0.0 and math.isfinite(abs_max):
+        ratio = min(1.0, max(0.0, abs(float(abs_weight)) / abs_max))
+    else:
+        ratio = 0.0
+    width = GRAPHML_EDGE_WIDTH_MIN + (GRAPHML_EDGE_WIDTH_MAX - GRAPHML_EDGE_WIDTH_MIN) * ratio
+    return ratio, width
+
+
+def _graphml_node_style(attributes: dict[str, Any]) -> tuple[str, str, str]:
+    """Return ``(fill_color, border_color, shape_type)`` for a pathway node's realizer."""
+    if attributes.get("is_background"):
+        return GRAPHML_NODE_STYLES["background"]
+    if attributes.get("is_singleton"):
+        return GRAPHML_NODE_STYLES["singleton"]
+    return GRAPHML_NODE_STYLES["default"]
+
+
+def _graphml_node_label(attributes: dict[str, Any], *, context: str) -> str:
+    """Return the multi-line yFiles node label for a pathway node's realizer.
+
+    The first line is the node's validated ``label`` (which falls back to its ``group_id``);
+    every subsequent line is one ``cell_type (count)`` entry of the node's
+    ``region_composition``.  That composition is stored as a sorted-key JSON document by
+    :func:`graphml_node_metadata`, so the entries are re-parsed here and ordered by
+    **descending count, then ascending cell type** for a deterministic, most-prevalent-first
+    label.  yEd renders the embedded :data:`GRAPHML_NODE_LABEL_SEPARATOR` newlines as line
+    breaks.  A missing or malformed composition degrades to a single-line label rather than
+    failing the export (the composition's own validation happens upstream).
+    """
+    label = attributes.get("label")
+    if not isinstance(label, str) or not label.strip() or label == "None":
+        raise MotifValidationError(f"{context} has no usable label")
+
+    composition: Any
+    try:
+        composition = json.loads(attributes.get("region_composition") or "{}")
+    except (TypeError, ValueError):
+        composition = {}
+    if not isinstance(composition, dict):
+        composition = {}
+
+    entries: list[tuple[str, int]] = []
+    for cell_type, count in composition.items():
+        try:
+            numeric_count = int(count)
+        except (TypeError, ValueError):
+            continue
+        entries.append((str(cell_type), numeric_count))
+    entries.sort(key=lambda entry: (-entry[1], entry[0]))
+
+    lines = [label, *(f"{cell_type} ({count})" for cell_type, count in entries)]
+    return GRAPHML_NODE_LABEL_SEPARATOR.join(lines)
+
+
+def node_geometry_size(label: str | None) -> tuple[float, float]:
+    """Return the auto-sized ``(width, height)`` of a node whose label is *label*.
+
+    The box is a deterministic, pure function of the label text:
+
+    * ``height`` grows with the number of :data:`GRAPHML_NODE_LABEL_SEPARATOR`-separated
+      lines at the yFiles default line spacing plus top/bottom padding;
+    * ``width`` grows with the longest line's **character count** using the
+      :data:`GRAPHML_NODE_CHAR_WIDTH` heuristic plus left/right padding;
+    * both are floored at :data:`GRAPHML_NODE_MIN_WIDTH` / :data:`GRAPHML_NODE_MIN_HEIGHT`,
+      so short labels keep the original look.
+
+    Only integer/float arithmetic on ``str`` inputs is used (no locale- or platform-dependent
+    font metrics), so the result is byte-stable under a fixed ``SOURCE_DATE_EPOCH``.
+    """
+    text = str(label) if label is not None else ""
+    lines = text.split(GRAPHML_NODE_LABEL_SEPARATOR) or [""]
+    n_lines = max(1, len(lines))
+    longest = max((len(line) for line in lines), default=0)
+    height = max(
+        GRAPHML_NODE_MIN_HEIGHT,
+        n_lines * GRAPHML_NODE_FONT_SIZE * GRAPHML_NODE_LINE_SPACING + 2.0 * GRAPHML_NODE_PADDING_Y,
+    )
+    width = max(
+        GRAPHML_NODE_MIN_WIDTH,
+        longest * GRAPHML_NODE_CHAR_WIDTH + 2.0 * GRAPHML_NODE_PADDING_X,
+    )
+    return float(width), float(height)
+
+
+def _graphml_node_geometry(
+    position: int,
+    total: int,
+    *,
+    step_x: float | None = None,
+    step_y: float | None = None,
+) -> tuple[float, float]:
+    """Return a deterministic grid ``(x, y)`` for the *position*-th of *total* nodes.
+
+    A placeholder layout only: yEd's own layout algorithms replace it on import.  The grid
+    steps default to the floored box plus :data:`GRAPHML_NODE_GRID_GAP`, so the placement is
+    a pure function of ``(position, total)``; :func:`_inject_yfiles_node_styles` passes the
+    diagram's largest auto-sized box instead so wide/multi-line nodes cannot overlap.
+    """
+    columns = max(1, math.ceil(math.sqrt(max(1, total))))
+    column = position % columns
+    row = position // columns
+    resolved_step_x = float(step_x) if step_x is not None else GRAPHML_NODE_MIN_WIDTH + GRAPHML_NODE_GRID_GAP
+    resolved_step_y = float(step_y) if step_y is not None else GRAPHML_NODE_MIN_HEIGHT + GRAPHML_NODE_GRID_GAP
+    return column * resolved_step_x, -row * resolved_step_y
+
+
 def graphml_node_metadata(
     node: dict[str, Any],
     group: dict[str, Any] | None = None,
@@ -3496,14 +3948,24 @@ def graphml_node_metadata(
 ) -> dict[str, Any]:
     """Return the yEd-facing GraphML attribute record for one pathway node.
 
+    ``group_id`` and ``label`` are validated: a missing/empty ``label`` falls back to the
+    validated ``group_id``, and neither may resolve to the literal string ``"None"``.
     Unavailable optional attributes (``dominant_mode`` for the background group,
     ``coherence`` for singletons, ``centroid`` without in-memory arrays) are **omitted**:
     NetworkX refuses ``None`` GraphML values.
     """
+    context = f"GraphML node {node.get('node_id', '<unknown>')!r}"
+    group_id = _required_graphml_text(node.get("group_id"), field_name="group_id", context=context)
+
+    raw_label = node.get("label")
+    if raw_label is None or str(raw_label).strip() in {"", "None"}:
+        raw_label = group_id
+    label = _required_graphml_text(raw_label, field_name="label", context=context)
+
     record = dict(group or {})
     metadata: dict[str, Any] = {
-        "group_id": str(node.get("group_id")),
-        "label": str(node.get("label") or node.get("group_id")),
+        "group_id": group_id,
+        "label": label,
         "size": int(node.get("size", 0)),
         "region_composition": json.dumps(node.get("region_composition") or {}, sort_keys=True),
         "is_background": bool(record.get("is_background", False)),
@@ -3521,25 +3983,256 @@ def graphml_node_metadata(
 
 
 def graphml_edge_metadata(
-    edge: dict[str, Any], *, z_contribution: float | None = None
+    edge: dict[str, Any],
+    *,
+    abs_max: float = 0.0,
+    z_contribution: float | None = None,
 ) -> dict[str, Any]:
-    """Return the yEd-facing GraphML attribute record for one pathway edge."""
+    """Return the yEd-facing GraphML attribute record for one pathway edge.
+
+    Weights stay **numeric** (NetworkX emits GraphML ``double``/``long``); only the per-mode
+    breakdown is JSON-encoded.  ``weight_ratio`` / ``edge_width`` are derived from
+    ``abs_weight / abs_max`` and ``edge_color`` from the signed ``polarity``, so the
+    visual-properties block injected by :func:`_inject_yfiles_edge_styles` mirrors the
+    ordinary metadata exactly.  ``abs_max`` is optional and defaults to ``0.0`` for
+    backward-compatible direct calls.
+    """
+    source = _required_graphml_text(
+        edge.get("source"), field_name="source", context="GraphML edge"
+    )
+    target = _required_graphml_text(
+        edge.get("target"), field_name="target", context=f"GraphML edge from {source!r}"
+    )
+
+    weight = float(edge.get("weight", 0.0))
+    abs_weight = float(edge.get("abs_weight", abs(weight)))
+    polarity = int(edge.get("polarity", int(np.sign(weight))))
+    if not math.isfinite(weight) or not math.isfinite(abs_weight):
+        raise MotifValidationError(f"GraphML edge {source!r}->{target!r} has a non-finite weight")
+
+    weight_ratio, edge_width = _graphml_edge_width(abs_weight, abs_max)
+
     metadata: dict[str, Any] = {
-        "source_group": str(edge.get("source")),
-        "target_group": str(edge.get("target")),
-        "weight": float(edge.get("weight", 0.0)),
-        "abs_weight": float(edge.get("abs_weight", 0.0)),
-        "polarity": int(edge.get("polarity", 0)),
+        "source_group": source,
+        "target_group": target,
+        "label": _graphml_edge_label(source, target, weight),
+        "weight": weight,
+        "abs_weight": abs_weight,
+        "polarity": polarity,
         "contribution_by_mode": json.dumps(
             [dict(entry) for entry in edge.get("top_modes") or ()], sort_keys=True
         ),
         "threshold_flag": True,
         "topN_flag": True,
         "intra_flag": bool(edge.get("is_intra", False)),
+        "weight_ratio": weight_ratio,
+        "edge_width": edge_width,
+        "edge_color": GRAPHML_EDGE_COLORS.get(polarity, GRAPHML_EDGE_COLORS[0]),
     }
     if z_contribution is not None:
-        metadata["z_contribution"] = float(z_contribution)
+        matrix_weight = float(z_contribution)
+        if not math.isfinite(matrix_weight):
+            raise MotifValidationError(
+                f"GraphML edge {source!r}->{target!r} has a non-finite z_contribution"
+            )
+        metadata["z_contribution"] = matrix_weight
     return metadata
+
+
+def _inject_yfiles_edge_styles(body: str, graph: Any) -> str:
+    """Augment a NetworkX GraphML body with deterministic yFiles edge visual properties.
+
+    NetworkX cannot emit nested yFiles XML from ordinary graph attributes, so the serialised
+    document is post-processed: a fixed yFiles ``edgegraphics`` key is registered and one
+    ``<y:PolyLineEdge>`` block is appended per edge, carrying the human-readable label and
+    the weight-derived width / polarity-derived colour computed by
+    :func:`graphml_edge_metadata`.
+    """
+    ET.register_namespace("", GRAPHML_NAMESPACE)
+    ET.register_namespace("y", YFILES_GRAPHML_NAMESPACE)
+
+    def graphml_tag(name: str) -> str:
+        return f"{{{GRAPHML_NAMESPACE}}}{name}"
+
+    def yfiles_tag(name: str) -> str:
+        return f"{{{YFILES_GRAPHML_NAMESPACE}}}{name}"
+
+    root = ET.fromstring(body)
+    graph_element = root.find(graphml_tag("graph"))
+    if graph_element is None:
+        raise MotifValidationError("generated GraphML has no <graph> element")
+
+    style_key = ET.Element(
+        graphml_tag("key"),
+        {
+            "id": GRAPHML_EDGE_STYLE_KEY,
+            "for": "edge",
+            "yfiles.type": "edgegraphics",
+        },
+    )
+    root.insert(list(root).index(graph_element), style_key)
+
+    for edge_element in graph_element.findall(graphml_tag("edge")):
+        source = edge_element.get("source")
+        target = edge_element.get("target")
+        if source is None or target is None:
+            raise MotifValidationError("generated GraphML contains an edge without source or target")
+
+        attributes = graph.edges[source, target]
+        label = attributes.get("label")
+        if not isinstance(label, str) or not label.strip() or label == "None":
+            raise MotifValidationError(f"GraphML edge {source!r}->{target!r} has no usable label")
+
+        style_data = ET.SubElement(
+            edge_element, graphml_tag("data"), {"key": GRAPHML_EDGE_STYLE_KEY}
+        )
+        edge_style = ET.SubElement(style_data, yfiles_tag("PolyLineEdge"))
+        # yFiles ``Edge.type`` declares an ordered ``xs:sequence``, so the children must be
+        # emitted in schema order: ``LineStyle`` -> ``Arrows`` -> ``EdgeLabel`` (the optional
+        # ``Path`` / ``SourcePort`` / ``TargetPort`` / ``BendStyle`` elements are omitted).
+        # The edge line is a ``LineStyle`` (``BorderStyle`` is a node-only element) and the
+        # arrows are an ``Arrows`` element (``ArrowStyle`` does not exist in the yFiles
+        # schema), so yEd can map the block to a PolyLineEdgeRealizer.
+        ET.SubElement(
+            edge_style,
+            yfiles_tag("LineStyle"),
+            {
+                "color": attributes["edge_color"],
+                "type": "line",
+                "width": f"{attributes['edge_width']:.6f}",
+            },
+        )
+        ET.SubElement(
+            edge_style,
+            yfiles_tag("Arrows"),
+            {"source": "none", "target": "standard"},
+        )
+        ET.SubElement(
+            edge_style,
+            yfiles_tag("EdgeLabel"),
+            {
+                "alignment": "center",
+                "fontFamily": "Dialog",
+                "fontSize": "12",
+                "hasBackgroundColor": "false",
+                "hasLineColor": "false",
+                "horizontalTextPosition": "center",
+                "verticalTextPosition": "center",
+                "visible": "true",
+            },
+        ).text = label
+
+    return ET.tostring(root, encoding="unicode")
+
+
+def _inject_yfiles_node_styles(body: str, graph: Any) -> str:
+    """Augment a NetworkX GraphML body with deterministic yFiles node visual properties.
+
+    Mirrors :func:`_inject_yfiles_edge_styles`: a fixed yFiles ``nodegraphics`` key is
+    registered and one ``<y:ShapeNode>`` block is appended per node, carrying a role-based
+    fill / border / shape and a multi-line label (the group id followed by one
+    ``cell_type (count)`` line per entry of the node's ``region_composition``).  The children
+    follow the yFiles ``Node.type`` / ``ShapeNode.type`` ``xs:sequence`` order:
+    ``Geometry`` -> ``Fill`` -> ``BorderStyle`` -> ``NodeLabel`` -> ``Shape``.
+
+    Each node's ``<y:Geometry>`` box is auto-sized from its multi-line label text by
+    :func:`node_geometry_size` and placed on a deterministic grid (a placeholder that yEd's
+    layout algorithms replace on import) whose steps track the diagram's largest box, so wide
+    or tall labels cannot overlap.  All four geometry attributes (``x``, ``y``, ``width``,
+    ``height``) are always emitted, and ``Geometry`` stays first in the ``ShapeNode`` sequence.
+    """
+    ET.register_namespace("", GRAPHML_NAMESPACE)
+    ET.register_namespace("y", YFILES_GRAPHML_NAMESPACE)
+
+    def graphml_tag(name: str) -> str:
+        return f"{{{GRAPHML_NAMESPACE}}}{name}"
+
+    def yfiles_tag(name: str) -> str:
+        return f"{{{YFILES_GRAPHML_NAMESPACE}}}{name}"
+
+    root = ET.fromstring(body)
+    graph_element = root.find(graphml_tag("graph"))
+    if graph_element is None:
+        raise MotifValidationError("generated GraphML has no <graph> element")
+
+    style_key = ET.Element(
+        graphml_tag("key"),
+        {"id": GRAPHML_NODE_STYLE_KEY, "for": "node", "yfiles.type": "nodegraphics"},
+    )
+    root.insert(list(root).index(graph_element), style_key)
+
+    node_elements = graph_element.findall(graphml_tag("node"))
+    total = len(node_elements)
+    # Resolve every label (and its auto-sized box) once, so the grid steps can track the
+    # diagram's largest box while the geometry stays a pure function of the label text.
+    labels: list[str] = []
+    sizes: list[tuple[float, float]] = []
+    for node_element in node_elements:
+        node_id = node_element.get("id")
+        if node_id is None:
+            raise MotifValidationError("generated GraphML contains a node without an id")
+        label = _graphml_node_label(graph.nodes[node_id], context=f"GraphML node {node_id!r}")
+        labels.append(label)
+        sizes.append(node_geometry_size(label))
+    max_width = max((size[0] for size in sizes), default=GRAPHML_NODE_MIN_WIDTH)
+    max_height = max((size[1] for size in sizes), default=GRAPHML_NODE_MIN_HEIGHT)
+    step_x = max_width + GRAPHML_NODE_GRID_GAP
+    step_y = max_height + GRAPHML_NODE_GRID_GAP
+
+    for position, node_element in enumerate(node_elements):
+        node_id = node_element.get("id")
+        if node_id is None:
+            raise MotifValidationError("generated GraphML contains a node without an id")
+
+        attributes = graph.nodes[node_id]
+        label = labels[position]
+        width, height = sizes[position]
+
+        fill_color, border_color, shape_type = _graphml_node_style(attributes)
+        x, y = _graphml_node_geometry(position, total, step_x=step_x, step_y=step_y)
+
+        style_data = ET.SubElement(
+            node_element, graphml_tag("data"), {"key": GRAPHML_NODE_STYLE_KEY}
+        )
+        shape_node = ET.SubElement(style_data, yfiles_tag("ShapeNode"))
+        # yFiles Node.type / ShapeNode.type is an ordered xs:sequence:
+        # Geometry -> Fill -> BorderStyle -> NodeLabel -> Shape.
+        ET.SubElement(
+            shape_node,
+            yfiles_tag("Geometry"),
+            {
+                "x": f"{x:.1f}",
+                "y": f"{y:.1f}",
+                "width": f"{width:.1f}",
+                "height": f"{height:.1f}",
+            },
+        )
+        ET.SubElement(
+            shape_node, yfiles_tag("Fill"), {"color": fill_color, "transparent": "false"}
+        )
+        ET.SubElement(
+            shape_node,
+            yfiles_tag("BorderStyle"),
+            {"color": border_color, "type": "line", "width": f"{GRAPHML_NODE_BORDER_WIDTH:.1f}"},
+        )
+        ET.SubElement(
+            shape_node,
+            yfiles_tag("NodeLabel"),
+            {
+                "alignment": "center",
+                "autoSizePolicy": "content",
+                "fontFamily": "Dialog",
+                "fontSize": f"{GRAPHML_NODE_FONT_SIZE:g}",
+                "hasBackgroundColor": "false",
+                "hasLineColor": "false",
+                "horizontalTextPosition": "center",
+                "verticalTextPosition": "center",
+                "visible": "true",
+            },
+        ).text = label
+        ET.SubElement(shape_node, yfiles_tag("Shape"), {"type": shape_type})
+
+    return ET.tostring(root, encoding="unicode")
 
 
 def write_graphml_pathway(
@@ -3586,21 +4279,53 @@ def write_graphml_pathway(
                 node, groups_by_id.get(str(node.get("group_id"))), centroid_by_id.get(node_id)
             ),
         )
+    abs_max_raw = payload.get("abs_max")
+    abs_max = float(abs_max_raw) if abs_max_raw is not None else 0.0
+    if not math.isfinite(abs_max) or abs_max < 0.0:
+        raise MotifValidationError("pathway GraphML abs_max must be finite and non-negative")
     for edge in edges:
+        source_id = _required_graphml_text(
+            edge.get("source"), field_name="source", context="pathway edge"
+        )
+        target_id = _required_graphml_text(
+            edge.get("target"), field_name="target", context=f"pathway edge from {source_id!r}"
+        )
         metadata = graphml_edge_metadata(
             edge,
-            z_contribution=(z_by_edge or {}).get(
-                (str(edge.get("source")), str(edge.get("target")))
-            ),
+            abs_max=abs_max,
+            z_contribution=(z_by_edge or {}).get((source_id, target_id)),
         )
-        graph.add_edge(str(edge.get("source")), str(edge.get("target")), **metadata)
+        graph.add_edge(source_id, target_id, **metadata)
     edge_threshold = payload.get("edge_threshold")
     top_edges = payload.get("top_edges")
+    unified_rule = str(
+        config.pathway_weight_rule
+        if config is not None
+        else payload.get("unified_weight_rule") or DEFAULT_PATHWAY_WEIGHT_RULE
+    )
+    polarity_rule = str(
+        config.pathway_polarity_rule
+        if config is not None
+        else payload.get("polarity_rule") or DEFAULT_PATHWAY_POLARITY_RULE
+    )
     graph.graph.update(
         {
             "n_nodes": int(len(nodes)),
             "n_edges": int(len(edges)),
+            "abs_max": abs_max,
             "weight_normalization": PATHWAY_WEIGHT_NORMALIZATION,
+            "edge_style": json.dumps(
+                {
+                    "width_formula": "1.0 + 4.0 * min(1.0, abs_weight / abs_max)",
+                    "width_min": GRAPHML_EDGE_WIDTH_MIN,
+                    "width_max": GRAPHML_EDGE_WIDTH_MAX,
+                    "color_by_polarity": {
+                        str(polarity): color
+                        for polarity, color in sorted(GRAPHML_EDGE_COLORS.items())
+                    },
+                },
+                sort_keys=True,
+            ),
             "pathway_source": str(
                 source if source is not None else payload.get("source") or DEFAULT_PATHWAY_SOURCE
             ),
@@ -3619,8 +4344,17 @@ def write_graphml_pathway(
                 if config is not None
                 else (top_edges if top_edges is not None else DEFAULT_PATHWAY_TOP_EDGES)
             ),
+            "pathway_unified_weight_rule": unified_rule,
+            "pathway_polarity_rule": polarity_rule,
         }
     )
+    # NetworkX rejects None GraphML values, so alpha is omitted (not null) unless hybrid.
+    if unified_rule == "hybrid":
+        graph.graph["pathway_hybrid_alpha"] = float(
+            config.pathway_hybrid_alpha
+            if config is not None
+            else payload.get("hybrid_alpha", DEFAULT_PATHWAY_HYBRID_ALPHA)
+        )
 
     for node_id, attributes in graph.nodes(data=True):
         unknown = sorted(set(attributes) - set(GRAPHML_NODE_KEYS))
@@ -3640,6 +4374,10 @@ def write_graphml_pathway(
 
     try:
         body = "\n".join(nx.generate_graphml(graph))
+        body = _inject_yfiles_edge_styles(body, graph)
+        body = _inject_yfiles_node_styles(body, graph)
+    except MotifValidationError:
+        raise
     except Exception as exc:
         raise MotifValidationError(f"could not serialise the GraphML pathway: {exc}") from exc
     return _write_text_atomic(path, f"{XML_DECLARATION}\n{body}\n")
@@ -3840,6 +4578,11 @@ def save_data_payload(analysis: MotifAnalysis, *, now: Any = None) -> dict[str, 
     }
 
 
+def _pathway_rule(analysis: MotifAnalysis, key: str, default: Any) -> Any:
+    """Read a 04D rule diagnostic (diagnostics are never serialized, so not in the payload)."""
+    return (analysis.diagnostics.get("pathway") or {}).get(key, default)
+
+
 def render_statistics(analysis: MotifAnalysis) -> str:
     """Terminal-only statistics block printed by ``--stats``."""
     metadata = analysis.metadata
@@ -3859,6 +4602,15 @@ def render_statistics(analysis: MotifAnalysis) -> str:
             f"  pathway             : {metadata.get('n_pathway_nodes')} nodes / "
             f"{metadata.get('n_pathway_edges')} edges "
             f"(source {pathway.get('source')}, weight {pathway.get('weight')})",
+            f"  pathway rules       : unified "
+            f"{_pathway_rule(analysis, 'weight_rule', DEFAULT_PATHWAY_WEIGHT_RULE)}"
+            f" / polarity "
+            f"{_pathway_rule(analysis, 'polarity_rule', DEFAULT_PATHWAY_POLARITY_RULE)}"
+            + (
+                f"   (hybrid alpha {float(_pathway_rule(analysis, 'hybrid_alpha', 0.0)):g})"
+                if _pathway_rule(analysis, "weight_rule", DEFAULT_PATHWAY_WEIGHT_RULE) == "hybrid"
+                else ""
+            ),
             f"  pathway threshold   : {pathway.get('edge_threshold')} x abs_max "
             f"(abs_max {float(metadata.get('pathway_abs_max') or 0.0):.6f}, "
             f"top {pathway.get('top_edges')} per source, intra {pathway.get('intra')})",
@@ -3937,7 +4689,9 @@ def render_summary_box(
         f"Groups: {metadata.get('n_groups')}",
         (
             f"Pathway: {metadata.get('n_pathway_nodes')} nodes / "
-            f"{metadata.get('n_pathway_edges')} edges"
+            f"{metadata.get('n_pathway_edges')} edges "
+            f"(unified {_pathway_rule(analysis, 'weight_rule', DEFAULT_PATHWAY_WEIGHT_RULE)}, "
+            f"polarity {_pathway_rule(analysis, 'polarity_rule', DEFAULT_PATHWAY_POLARITY_RULE)})"
             if metadata.get("n_pathway_nodes") is not None
             else "Pathway: not computed (grouping none)"
         ),
@@ -4189,6 +4943,31 @@ def build_argument_parser() -> argparse.ArgumentParser:
         help=f"strongest edges kept per source group (default: {DEFAULT_PATHWAY_TOP_EDGES})",
     )
     pathway.add_argument(
+        "--pathway-weight-rule", dest="pathway_weight_rule", choices=PATHWAY_WEIGHT_RULES,
+        default=DEFAULT_PATHWAY_WEIGHT_RULE,
+        help=f"transform of the aggregated contribution into the filter/viz weights; any "
+             f"rule other than 'signed' overrides --pathway-source "
+             f"(default: {DEFAULT_PATHWAY_WEIGHT_RULE})",
+    )
+    pathway.add_argument(
+        "--pathway-polarity-rule", dest="pathway_polarity_rule", choices=PATHWAY_POLARITY_RULES,
+        default=DEFAULT_PATHWAY_POLARITY_RULE,
+        help=f"edge polarity (and GraphML colour) rule; pre_z/post_z are group-level and "
+             f"delta needs the Phase 02 matrix (default: {DEFAULT_PATHWAY_POLARITY_RULE})",
+    )
+    pathway.add_argument(
+        "--pathway-hybrid-alpha", dest="pathway_hybrid_alpha", type=float,
+        default=DEFAULT_PATHWAY_HYBRID_ALPHA,
+        help=f"blend weight of W_mode in --pathway-weight-rule hybrid "
+             f"(default: {DEFAULT_PATHWAY_HYBRID_ALPHA})",
+    )
+    pathway.add_argument(
+        "--pathway-mode-weights", dest="pathway_weight", choices=PATHWAY_WEIGHTS,
+        default=DEFAULT_PATHWAY_WEIGHT,
+        help=f"alias of --pathway-weight: mode weighting rule "
+             f"(default: {DEFAULT_PATHWAY_WEIGHT})",
+    )
+    pathway.add_argument(
         "--no-intra", dest="intra", action="store_false", default=DEFAULT_INTRA,
         help="exclude intra-group (self) edges from the pathway graph",
     )
@@ -4261,6 +5040,9 @@ def _config_from_args(args: argparse.Namespace) -> MotifConfig:
         pathway_weight=str(args.pathway_weight),
         pathway_edge_threshold=float(args.pathway_edge_threshold),
         pathway_top_edges=int(args.pathway_top_edges),
+        pathway_weight_rule=str(args.pathway_weight_rule),
+        pathway_polarity_rule=str(args.pathway_polarity_rule),
+        pathway_hybrid_alpha=float(args.pathway_hybrid_alpha),
         intra=bool(args.intra),
         stage=STAGE,
     )

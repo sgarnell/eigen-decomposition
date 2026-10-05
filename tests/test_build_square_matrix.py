@@ -73,6 +73,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 TINY = FIXTURES / "tiny_valid.gv"
 ZERO_Z = FIXTURES / "zero_z.gv"
+SELF_LOOP_MIXED = FIXTURES / "self_loop_mixed.gv"
 REFERENCE_GV = PROJECT_ROOT / "data" / "raw_dot" / "FB4Yaffect_FB45_999prePost_001_all.gv"
 REFERENCE_ARTIFACT = (
     PROJECT_ROOT / "data" / "processed" / REFERENCE_GV.stem / "parsed_graph.json"
@@ -114,6 +115,23 @@ def tiny_z(tiny_payload: dict):
 def tiny_artifact(tmp_path: Path) -> Path:
     """Write the Phase 01 artifact for ``tiny_valid.gv`` and return its path."""
     return write_artifact(parse_graphviz_file(TINY), tmp_path / "processed")
+
+
+@pytest.fixture(scope="module")
+def self_loop_payload() -> dict:
+    """Phase 01 payload for ``self_loop_mixed.gv`` (one ordinary + one self-loop pair)."""
+    parsed, report = build_parsed_graph(SELF_LOOP_MIXED, allow_self_loops=True)
+    assert not report.has_errors, report.to_dict()
+    return parsed.to_dict()
+
+
+@pytest.fixture()
+def self_loop_artifact(self_loop_payload: dict, tmp_path: Path) -> Path:
+    """Write the Phase 01 self-loop artifact and return its path."""
+    path = tmp_path / "processed" / "self_loop_mixed" / "parsed_graph.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(self_loop_payload), encoding="utf-8")
+    return path
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +333,7 @@ def test_config_hash_is_eight_hex_characters_and_stable() -> None:
         {"symmetric": True},
         {"symmetrize": "sum"},
         {"normalize": "rows"},
+        {"allow_self_loops": True},
         {"filters": [{"type": "min_pre", "value": 0.2, "removed": 3}]},
     ],
 )
@@ -777,6 +796,141 @@ def test_compute_diagnostics_spectral_radius_only_in_symmetric_mode(tiny_payload
         symmetric.diagnostics["symmetrized_spectral_radius"], rel=1e-12
     )
 
+# ---------------------------------------------------------------------------
+# --allow-self-loops (execution-plans/02_update_c.md)
+# ---------------------------------------------------------------------------
+def test_self_loops_are_an_error_by_default(self_loop_payload: dict) -> None:
+    _, report = build_z_matrix(self_loop_payload)
+    assert report.has_errors
+    assert builder.CODE_SELF_LOOP in report.codes()
+
+
+def test_allow_self_loops_downgrades_to_a_warning(self_loop_payload: dict) -> None:
+    z_matrix, report = build_z_matrix(
+        self_loop_payload, config=ZMatrixConfig(allow_self_loops=True)
+    )
+    assert not report.has_errors
+    assert builder.CODE_SELF_LOOP in report.codes()
+    assert any(issue.code == builder.CODE_SELF_LOOP for issue in report.warnings)
+    # both the ordinary pair and the self-loop are kept
+    assert [(pair.source, pair.target) for pair in z_matrix.pairs] == [("N1", "N2"), ("N3", "N3")]
+
+
+def test_self_loop_weight_lands_on_the_diagonal(self_loop_payload: dict) -> None:
+    z_matrix, report = build_z_matrix(
+        self_loop_payload, config=ZMatrixConfig(allow_self_loops=True)
+    )
+    assert not report.has_errors
+    weight = unified_weight(0.5, 0.4)
+    assert z_matrix.matrix[2, 2] == pytest.approx(weight, rel=1e-12)
+    # the ordinary pair stays off-diagonal, the diagonal is no longer forced to zero
+    assert z_matrix.matrix[0, 1] == pytest.approx(unified_weight(0.8, 0.6), rel=1e-12)
+    assert z_matrix.matrix_symmetric[2, 2] == pytest.approx(weight, rel=1e-12)
+    assert z_matrix.metadata["n_self_loops"] == 1
+
+
+def test_metadata_and_config_record_self_loop_support(self_loop_payload: dict) -> None:
+    z_matrix, report = build_z_matrix(
+        self_loop_payload, config=ZMatrixConfig(allow_self_loops=True)
+    )
+    assert not report.has_errors
+    payload = z_matrix.to_dict()
+    assert payload["config"]["allow_self_loops"] is True
+    assert payload["metadata"]["n_self_loops"] == 1
+    assert set(payload["config"]) == set(builder.CONFIG_KEYS)
+    assert validate_z_payload_schema(payload) == []
+
+
+def test_disallowed_self_loops_report_zero_in_metadata(self_loop_payload: dict) -> None:
+    # default run aborts, but the partially built object still reports honestly
+    z_matrix, report = build_z_matrix(self_loop_payload)
+    assert report.has_errors
+    assert 0 == sum(1 for pair in z_matrix.pairs if pair.source == pair.target)
+
+
+def test_allow_self_loops_with_symmetric_mode_preserves_the_diagonal(self_loop_payload: dict) -> None:
+    z_matrix, report = build_z_matrix(
+        self_loop_payload, config=ZMatrixConfig(allow_self_loops=True, symmetric=True)
+    )
+    assert not report.has_errors
+    assert np.array_equal(z_matrix.matrix, z_matrix.matrix_symmetric)
+    assert z_matrix.matrix[2, 2] == pytest.approx(unified_weight(0.5, 0.4), rel=1e-12)
+    assert z_matrix.diagnostics["spectral_radius"] is not None
+
+
+@pytest.mark.parametrize("method", ["rows", "cols", "unit", "zscore-nonzero"])
+def test_diagonal_survives_normalization(self_loop_payload: dict, method: str) -> None:
+    z_matrix, report = build_z_matrix(
+        self_loop_payload,
+        config=ZMatrixConfig(allow_self_loops=True, normalize=method),
+    )
+    assert not report.has_errors
+    # the self-loop is a stored entry, so it is part of the norms and the stats
+    assert z_matrix.matrix[2, 2] != 0.0
+    assert z_matrix.diagnostics["n_stored_nonzero"] == 2
+    assert z_matrix.diagnostics["row_norms"][2] >= abs(z_matrix.matrix[2, 2])
+
+
+def test_allow_self_loops_changes_the_config_hash_and_is_not_default() -> None:
+    default = ZMatrixConfig()
+    allowed = ZMatrixConfig(allow_self_loops=True)
+    assert default.is_default() is True
+    assert allowed.is_default() is False
+    assert allowed.config_hash() != default.config_hash()
+
+
+def test_allow_self_loops_config_round_trips() -> None:
+    config = ZMatrixConfig(allow_self_loops=True)
+    assert ZMatrixConfig.from_dict(config.to_dict()) == config
+
+
+def test_legacy_artifact_without_allow_self_loops_key_is_still_accepted(tiny_z) -> None:
+    """A Phase 02 artifact written before self-loop support stays loadable (Phases 03+)."""
+    payload = json.loads(json.dumps(tiny_z.to_dict()))
+    del payload["config"]["allow_self_loops"]
+    assert validate_z_payload_schema(payload) == []
+    # but a non-boolean value is still rejected
+    payload["config"]["allow_self_loops"] = "yes"
+    assert any("allow_self_loops" in problem for problem in validate_z_payload_schema(payload))
+
+
+def test_cli_default_aborts_on_a_self_loop_without_writing(
+    self_loop_artifact: Path, tmp_path: Path
+) -> None:
+    outdir = tmp_path / "out"
+    assert main(["-i", str(self_loop_artifact), "-o", str(outdir), "--strict"]) == 1
+    assert not outdir.exists() or list(outdir.iterdir()) == []
+
+
+def test_cli_allow_self_loops_writes_a_variant_artifact(
+    self_loop_artifact: Path, tmp_path: Path
+) -> None:
+    outdir = tmp_path / "out"
+    assert main(["-i", str(self_loop_artifact), "-o", str(outdir), "--allow-self-loops"]) == 0
+    config = ZMatrixConfig(allow_self_loops=True)
+    json_path = outdir / "self_loop_mixed" / f"z_matrix.{config.config_hash()}.json"
+    assert json_path.is_file()
+    # the canonical name is never clobbered by a self-loop run
+    assert not (outdir / "self_loop_mixed" / "z_matrix.json").exists()
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["config"]["allow_self_loops"] is True
+    assert payload["metadata"]["n_self_loops"] == 1
+
+
+def test_cli_allow_self_loops_with_strict_still_fails_before_writing(
+    self_loop_artifact: Path, tmp_path: Path
+) -> None:
+    outdir = tmp_path / "out"
+    code = main(
+        ["-i", str(self_loop_artifact), "-o", str(outdir), "--allow-self-loops", "--strict"]
+    )
+    assert code == 1
+    assert not outdir.exists() or list(outdir.iterdir()) == []
+
+
+# ---------------------------------------------------------------------------
+# CLI plumbing
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # CLI plumbing

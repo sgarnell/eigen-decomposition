@@ -9,8 +9,9 @@ Phase 02 is the **only** owner of the pre/post -> unified-weight computation::
 It consumes the Phase 01 artifact ``parsed_graph.json`` (``pairs`` carry
 ``pre_z`` / ``post_z`` verbatim) and produces the dense square matrix ``Z``
 (rows = source neurons, columns = target neurons, missing edges = ``0``,
-diagonal = ``0``).  Phase 02 performs no spectral analysis, no clustering and no
-pair filtering -- those belong to later phases.
+diagonal = ``0`` unless ``--allow-self-loops`` keeps a self-loop pair, whose
+weight then lands on ``Z[i, i]``).  Phase 02 performs no spectral analysis, no
+clustering and no pair filtering -- those belong to later phases.
 
 Pipeline order (fixed, and recorded in ``config``)::
 
@@ -42,6 +43,7 @@ CLI
         [--eps 0.1] [--alpha 1.0] [--zero-policy {zero-in-zero-out,formula}] \\
         [--symmetric] [--symmetrize {mean,sum,max-abs,min-abs}] \\
         [--normalize {none,rows,cols,unit,spectral,zscore-nonzero}] \\
+        [--allow-self-loops] \\
         [--config-hash] [--no-sidecar] \\
         [--plot] [--no-popup] [--cmap viridis] [--interactive] \\
         [--save-data] [--stats] [--hist-bins 10] \\
@@ -129,6 +131,7 @@ __all__ = [
     "DEFAULT_SYMMETRIZE",
     "DEFAULT_ZERO_POLICY",
     "INTERACTIVE_ANNOTATION_KWARGS",
+    "LEGACY_CONFIG_KEYS",
     "MATRIX_CONFIG_FIELDS",
     "METADATA_KEYS",
     "NON_INTERACTIVE_BACKENDS",
@@ -232,13 +235,23 @@ MATRIX_CONFIG_FIELDS = (
     "symmetrize",
     "normalize",
     "dtype",
+    "allow_self_loops",
     "filters",
 )
 
 #: ``is_default()`` compares only these CLI-controlled fields (``filters`` is
 #: hashed but must not force a hash segment: a filtered input already gets the
 #: ``.filtered`` segment from the artifact name).
-DEFAULT_DECISION_FIELDS = ("eps", "alpha", "zero_policy", "symmetric", "symmetrize", "normalize", "dtype")
+DEFAULT_DECISION_FIELDS = (
+    "eps",
+    "alpha",
+    "zero_policy",
+    "symmetric",
+    "symmetrize",
+    "normalize",
+    "dtype",
+    "allow_self_loops",
+)
 
 #: Projection of ``pairs`` written by :meth:`WeightedPair.to_dict`.
 WEIGHTED_PAIR_KEYS = frozenset({"source", "target", "pre_z", "post_z", "weight"})
@@ -253,8 +266,24 @@ PROVENANCE_KEYS = frozenset(
     }
 )
 CONFIG_KEYS = frozenset(
-    {"unification", "eps", "alpha", "zero_policy", "symmetric", "symmetrize", "normalize", "dtype", "filters", "config_hash"}
+    {
+        "unification",
+        "eps",
+        "alpha",
+        "zero_policy",
+        "symmetric",
+        "symmetrize",
+        "normalize",
+        "dtype",
+        "allow_self_loops",
+        "filters",
+        "config_hash",
+    }
 )
+#: ``config`` keys that newer artifacts always carry but older ones may omit.
+#: They are validated when present (see :func:`validate_z_payload_schema`) so a
+#: Phase 02 artifact written before self-loop support stays loadable by Phases 03+.
+LEGACY_CONFIG_KEYS = frozenset({"allow_self_loops"})
 TOP_LEVEL_KEYS = frozenset(
     {"provenance", "config", "neuron_order", "pairs", "matrix", "matrix_symmetric", "metadata"}
 )
@@ -352,6 +381,10 @@ class ZMatrixConfig:
     symmetrize: str = DEFAULT_SYMMETRIZE
     normalize: str = DEFAULT_NORMALIZATION
     dtype: str = DEFAULT_DTYPE
+    #: When set, self-loop pairs ``(A, A)`` become warnings instead of errors and
+    #: their unified weight is written to the diagonal ``Z[i, i]`` (see
+    #: ``execution-plans/02_update_c.md``); mirrors Phase 01's flag.
+    allow_self_loops: bool = False
     #: Phase 01 ``metadata.filters`` of the input artifact (provenance only).
     filters: list[dict[str, Any]] = field(default_factory=list)
 
@@ -372,6 +405,7 @@ class ZMatrixConfig:
             symmetrize=str(payload.get("symmetrize", DEFAULT_SYMMETRIZE)),
             normalize=str(payload.get("normalize", DEFAULT_NORMALIZATION)),
             dtype=str(payload.get("dtype", DEFAULT_DTYPE)),
+            allow_self_loops=bool(payload.get("allow_self_loops", False)),
             filters=list(payload.get("filters") or []),
         )
 
@@ -390,6 +424,7 @@ class ZMatrixConfig:
             "symmetrize": self.symmetrize,
             "normalize": self.normalize,
             "dtype": self.dtype,
+            "allow_self_loops": bool(self.allow_self_loops),
             "filters": [dict(item) for item in self.filters],
         }
 
@@ -819,8 +854,15 @@ def _collect_pairs(
             )
             continue
         if source == target:
-            report.error(CODE_SELF_LOOP, f"pairs[{position}] encodes the self-loop {source!r}")
-            continue
+            if config.allow_self_loops:
+                report.warning(
+                    CODE_SELF_LOOP,
+                    f"pairs[{position}] encodes the self-loop {source!r}; kept because "
+                    "--allow-self-loops is set",
+                )
+            else:
+                report.error(CODE_SELF_LOOP, f"pairs[{position}] encodes the self-loop {source!r}")
+                continue
         coordinate = (index[source], index[target])
         if coordinate in seen:
             report.error(
@@ -933,7 +975,8 @@ def build_z_matrix(
             report,
         )
 
-    # 1. assemble the directed matrix (missing edges and the diagonal are zero)
+    # 1. assemble the directed matrix: missing edges are zero; the diagonal is
+    #    zero unless a kept self-loop (``--allow-self-loops``) lands a weight on it
     directed = np.zeros((n_neurons, n_neurons), dtype=np.float64)
     rows = np.array([index[pair.source] for pair in pairs], dtype=np.intp)
     cols = np.array([index[pair.target] for pair in pairs], dtype=np.intp)
@@ -977,7 +1020,7 @@ def build_z_matrix(
         "n_weight_positive": int(diagnostics["n_weight_positive"]),
         "n_weight_negative": int(diagnostics["n_weight_negative"]),
         "n_weight_zero": int(diagnostics["n_weight_zero"]),
-        "n_self_loops": 0,
+        "n_self_loops": int(sum(1 for pair in pairs if pair.source == pair.target)),
         "sparsity": float(diagnostics["sparsity"]),
         "density": float(density),
         "reciprocity": int(reciprocity),
@@ -1031,8 +1074,14 @@ def build_z_matrix(
         report.error(CODE_PAYLOAD_SCHEMA, f"artifact does not conform to the Phase 02 schema: {problem}")
     if effective.shape != (n_neurons, n_neurons):
         report.error(CODE_MATRIX_SHAPE, f"matrix shape {effective.shape} != ({n_neurons}, {n_neurons})")
-    if effective.size and np.any(np.diag(effective) != 0.0):
+    if not active.allow_self_loops and effective.size and np.any(np.diag(effective) != 0.0):
         report.error(CODE_DIAGONAL, "the matrix diagonal must be exactly 0 (no self-loops)")
+    if (
+        active.allow_self_loops
+        and effective.size
+        and np.any(np.diag(symmetric_matrix) != np.diag(effective))
+    ):
+        report.error(CODE_DIAGONAL, "symmetrization must preserve the diagonal (self-loop weights)")
     if effective.size and not np.array_equal(symmetric_matrix, symmetric_matrix.T):
         report.error(CODE_SYMMETRY, "matrix_symmetric is not exactly symmetric")
     if effective.size and not np.isfinite(effective).all():
@@ -1078,8 +1127,14 @@ def validate_z_payload_schema(payload: dict[str, Any]) -> list[str]:
     """
     problems: list[str] = []
 
-    def _require_keys(actual: Iterable[str], expected: frozenset[str], where: str) -> None:
-        missing = sorted(expected - set(actual))
+    def _require_keys(
+        actual: Iterable[str],
+        expected: frozenset[str],
+        where: str,
+        optional: frozenset[str] = frozenset(),
+    ) -> None:
+        """Flag missing/extra keys; *optional* keys may be absent (legacy artifacts)."""
+        missing = sorted((expected - optional) - set(actual))
         extra = sorted(set(actual) - expected)
         if missing:
             problems.append(f"{where}: missing key(s) {missing}")
@@ -1101,9 +1156,11 @@ def validate_z_payload_schema(payload: dict[str, Any]) -> list[str]:
     if not isinstance(config, dict):
         problems.append("config: not an object")
     else:
-        _require_keys(config.keys(), CONFIG_KEYS, "config")
+        _require_keys(config.keys(), CONFIG_KEYS, "config", optional=LEGACY_CONFIG_KEYS)
         if not isinstance(config.get("symmetric"), bool):
             problems.append("config.symmetric: not a boolean")
+        if "allow_self_loops" in config and not isinstance(config["allow_self_loops"], bool):
+            problems.append("config.allow_self_loops: not a boolean")
         if config.get("normalize") not in NORMALIZATIONS:
             problems.append(f"config.normalize: {config.get('normalize')!r} is not one of {NORMALIZATIONS}")
         if config.get("symmetrize") not in SYMMETRIZE_METHODS:
@@ -2011,6 +2068,11 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--normalize", choices=NORMALIZATIONS, default=DEFAULT_NORMALIZATION,
         help="rows | cols | unit (max |w|) | spectral (largest singular value) | zscore-nonzero | none",
     )
+    structure.add_argument(
+        "--allow-self-loops", dest="allow_self_loops", action="store_true",
+        help="allow pairs of the form (A, A): self-loops become warnings instead of errors "
+             "and their unified weight is written to the matrix diagonal",
+    )
 
     outputs = parser.add_argument_group("outputs")
     outputs.add_argument("--config-hash", dest="config_hash", action="store_true",
@@ -2084,6 +2146,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             symmetric=args.symmetric,
             symmetrize=args.symmetrize,
             normalize=args.normalize,
+            allow_self_loops=args.allow_self_loops,
             # hashed but never default-forcing: a filtered input is named `.filtered`
             filters=list((payload.get("metadata") or {}).get("filters") or []),
         )
@@ -2093,7 +2156,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 payload,
                 source_artifact=source,
                 config=config,
-                strict=False,
+                # --strict escalates warnings here, before anything is written, so a
+                # strict run never leaves a partial artifact behind.
+                strict=args.strict,
                 hist_bins=args.hist_bins,
             )
         except Exception as exc:  # malformed/unreadable artifact
@@ -2151,11 +2216,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
             for issue in report.warnings:
                 LOGGER.warning("%s: [%s] %s", source.name, issue.code, issue.message)
-            if report.has_errors or (args.strict and report.warnings):
+            # Warnings were already escalated to errors inside build_z_matrix when
+            # --strict is set, so anything reported here is a failed derived write.
+            if report.has_errors:
                 for issue in report.errors:
                     LOGGER.error("%s: [%s] %s", source.name, issue.code, issue.message)
-                if args.strict and report.warnings:
-                    LOGGER.error("%s: --strict escalates %d warning(s) to errors", source.name, len(report.warnings))
                 LOGGER.error("%s: artifact writing failed (%s)", source.name, report.summary())
                 failures += 1
                 continue

@@ -2,7 +2,7 @@
   "config": {
     "absolute_threshold": 0.05,
     "affinity": "cosine",
-    "config_hash": "3fcaf50e",
+    "config_hash": "e973fece",
     "diagram_layout": "circular",
     "family_jaccard": 0.2,
     "family_polarity": 0.5,
@@ -21,9 +21,12 @@
     "participation": "rms",
     "participation_threshold": 0.1,
     "pathway_edge_threshold": 0.1,
+    "pathway_hybrid_alpha": 0.5,
+    "pathway_polarity_rule": "sign",
     "pathway_source": "mode",
     "pathway_top_edges": 5,
     "pathway_weight": "evr",
+    "pathway_weight_rule": "signed",
     "polarity_min_members": 3,
     "polarity_split": false,
     "quantile": 0.8,
@@ -11594,7 +11597,7 @@
     }
   ],
   "metadata": {
-    "config_hash": "3fcaf50e",
+    "config_hash": "e973fece",
     "created_utc": "2023-11-14T22:13:20Z",
     "generator": "src.clustering.functional_motifs",
     "group_sizes": [

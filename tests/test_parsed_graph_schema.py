@@ -90,6 +90,7 @@ def assert_schema(payload: dict) -> None:
     assert isinstance(metadata["parser"], str)
     assert isinstance(metadata["parser_version"], str)
     assert RFC3339.match(metadata["created_utc"])
+    assert isinstance(metadata["allow_self_loops"], bool)
 
 
 @pytest.fixture(scope="module")
@@ -130,6 +131,7 @@ def test_metadata_keys_are_exact(payload: dict) -> None:
         "parser",
         "parser_version",
         "created_utc",
+        "allow_self_loops",
     }
 
 

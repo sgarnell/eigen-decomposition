@@ -119,6 +119,7 @@ Each pathway edge becomes a GraphML edge with keys:
 
 - `source_group`  
 - `target_group`  
+- `label`  
 - `weight`  
 - `abs_weight`  
 - `polarity`  
@@ -127,15 +128,27 @@ Each pathway edge becomes a GraphML edge with keys:
 - `topN_flag`  
 - `intra_flag`  
 - `z_contribution` (optional)  
+- `weight_ratio`  
+- `edge_width`  
+- `edge_color`  
 
 ### **Graph-level metadata**  
 - `n_nodes`  
 - `n_edges`  
+- `abs_max`  
 - `weight_normalization`  
+- `edge_style`  
 - `pathway_source`  
 - `pathway_weight_rule`  
 - `threshold`  
 - `topN`  
+
+The GraphML backend remains NetworkX. NetworkX generates the standard GraphML document and
+scalar data fields; the writer then augments that serialized document with deterministic
+yFiles/yEd `edgegraphics` style blocks (rendered edge labels, `abs_weight`-derived line
+width, `polarity`-derived colour) and `nodegraphics` style blocks (multi-line node labels —
+group ID plus each `cell_type (count)` of the region composition — and role-based
+fill/border/shape). No config field or CLI option is introduced.  
 
 ## **Tests (≈32 + 2 slow)**  
 - contribution formula correctness  

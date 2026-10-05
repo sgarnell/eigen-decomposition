@@ -70,6 +70,7 @@ def assert_z_schema(payload: dict) -> None:
     config = payload["config"]
     assert set(config) == set(CONFIG_KEYS)
     assert isinstance(config["symmetric"], bool)
+    assert isinstance(config["allow_self_loops"], bool)
     assert isinstance(config["eps"], float) and isinstance(config["alpha"], float)
     assert config["normalize"] in NORMALIZATIONS
     assert config["symmetrize"] in {"mean", "sum", "max-abs", "min-abs"}
