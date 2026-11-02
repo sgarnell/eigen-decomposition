@@ -37,6 +37,9 @@ from src.clustering.functional_motifs import (
     GRAPHML_EDGE_KEYS,
     GRAPHML_GRAPH_KEYS,
     GRAPHML_NODE_KEYS,
+    GRAPHML_PARAMETERS_NODE_ID,
+    GRAPHML_PARAMETERS_ROLE_KEY,
+    GRAPHML_PARAMETERS_TITLE,
     GRAPHML_NODE_CHAR_WIDTH,
     GRAPHML_NODE_FONT_SIZE,
     GRAPHML_NODE_LINE_SPACING,
@@ -73,6 +76,7 @@ from src.clustering.functional_motifs import (
     initial_group_labels,
     build_sidecar_arrays,
     classify_link,
+    cli_parameters_from_args,
     compute_participation,
     derive_region,
     extract_motif,
@@ -3095,3 +3099,105 @@ def test_reference_update_polarity_rules(rule: str, positive: int, negative: int
     assert pathway["n_edges"] == 39
     assert (pathway["n_positive"], pathway["n_negative"]) == (positive, negative)
     assert analysis.diagnostics["pathway"]["polarity_rule"] == rule
+
+
+# ---------------------------------------------------------------------------
+# 04D -- the "parameters used" informational GraphML node
+# ---------------------------------------------------------------------------
+def test_04d_graphml_cli_parameters_node(synthetic_spectrum, tmp_path: Path) -> None:
+    nx = pytest.importorskip("networkx")
+    from xml.etree import ElementTree as ET
+
+    analysis = _pathway_inputs(synthetic_spectrum)
+    parameters = {
+        "--participation": "rms",
+        "--grouping": "hybrid",
+        "--intra": "True",
+        "--log-level": "INFO",
+    }
+    written = write_graphml_pathway(
+        tmp_path / "motifs.pathway.graphml",
+        analysis.pathway,
+        groups=analysis.groups,
+        config=analysis.config,
+        cli_parameters=parameters,
+    )
+
+    graph = nx.read_graphml(written)
+    assert GRAPHML_PARAMETERS_NODE_ID in graph.nodes
+    # The parameters node is never connected to any other node.
+    assert graph.degree(GRAPHML_PARAMETERS_NODE_ID) == 0
+    assert graph.number_of_nodes() == analysis.pathway["n_nodes"] + 1
+    assert graph.number_of_edges() == analysis.pathway["n_edges"]
+    assert graph.graph["n_nodes"] == analysis.pathway["n_nodes"]
+
+    graphml_ns = "http://graphml.graphdrawing.org/xmlns"
+    yfiles_ns = "http://www.yworks.com/xml/graphml"
+    root = ET.parse(written).getroot()
+    element = next(
+        node
+        for node in root.findall(f".//{{{graphml_ns}}}node")
+        if node.get("id") == GRAPHML_PARAMETERS_NODE_ID
+    )
+    node_label = element.find(f".//{{{yfiles_ns}}}NodeLabel")
+    assert node_label is not None and node_label.text is not None
+    lines = node_label.text.splitlines()
+    assert lines[0] == GRAPHML_PARAMETERS_TITLE
+    assert lines[1:] == [f"{flag}: {value}" for flag, value in parameters.items()]
+    fill = element.find(f".//{{{yfiles_ns}}}Fill")
+    assert fill is not None and fill.get("color") == "#FFFDE7"
+    assert len(root.findall(f".//{{{graphml_ns}}}edge")) == analysis.pathway["n_edges"]
+
+
+def test_04d_graphml_default_has_no_parameters_node(synthetic_spectrum, tmp_path: Path) -> None:
+    nx = pytest.importorskip("networkx")
+    analysis = _pathway_inputs(synthetic_spectrum)
+    written = write_graphml_pathway(
+        tmp_path / "motifs.pathway.graphml", analysis.pathway, config=analysis.config
+    )
+    graph = nx.read_graphml(written)
+    assert GRAPHML_PARAMETERS_NODE_ID not in graph.nodes
+    assert graph.number_of_nodes() == analysis.pathway["n_nodes"]
+
+
+def test_04d_cli_parameters_from_args() -> None:
+    parser = build_argument_parser()
+    argv = [
+        "-i", "a/eigen.json", "b/eigen.json",
+        "--grouping", "hybrid", "--no-intra",
+        "--pathway-mode-weights", "uniform", "--no-graphml",
+    ]
+    parameters = cli_parameters_from_args(parser, parser.parse_args(argv))
+    assert list(parameters)[0] == "--input"
+    assert parameters["--input"] == "a/eigen.json b/eigen.json"
+    assert parameters["--grouping"] == "hybrid"
+    assert parameters["--intra"] == "False"
+    assert parameters["--graphml"] == "False"
+    assert parameters["--pathway-weight"] == "uniform"
+    for absent in ("--pathway-mode-weights", "--no-intra", "--no-graphml", "--help"):
+        assert absent not in parameters
+    assert parameters["--anatomy"] == "None"
+    assert parameters["--log-level"] == "INFO"
+    assert cli_parameters_from_args(parser, parser.parse_args(argv)) == parameters
+
+
+def test_04d_cli_parameters_end_to_end(synthetic_workspace, tmp_path: Path) -> None:
+    nx = pytest.importorskip("networkx")
+    outdir = tmp_path / "out"
+    code = main(
+        [
+            "-i", str(synthetic_workspace), "-o", str(outdir),
+            "--grouping", "hybrid", "--no-intra",
+        ]
+    )
+    assert code == 0
+    written = sorted(outdir.rglob("*.pathway.graphml"))
+    assert len(written) == 1
+    graph = nx.read_graphml(written[0])
+    assert GRAPHML_PARAMETERS_NODE_ID in graph.nodes
+    label = graph.nodes[GRAPHML_PARAMETERS_NODE_ID]["label"]
+    lines = label.splitlines()
+    assert lines[0] == GRAPHML_PARAMETERS_TITLE
+    assert "--grouping: hybrid" in lines
+    assert "--intra: False" in lines
+    assert graph.degree(GRAPHML_PARAMETERS_NODE_ID) == 0

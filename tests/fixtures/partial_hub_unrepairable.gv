@@ -1,0 +1,9 @@
+// Phase 01 fixture -- a hub with neither leg.  Not repairable even with
+// --allow-stub-edges, so it stays a hub_degree error.
+digraph G {
+	"M5--M6" [label="" color=cyan shape=circle style=filled]
+	M5 [label="M5
+cent= 0.1" color=brown2 shape=circle]
+	M6 [label="M6
+cent= 0.1" color=brown2 shape=circle]
+}

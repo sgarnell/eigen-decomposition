@@ -99,6 +99,7 @@ density=0.107064 reciprocity=574` and writes
 | `--min-post FLOAT` | none | Drop pairs whose `post_z` is below this value. |
 | `--top-k INT` | none | Keep only the top-k pairs ranked by `pre_z + post_z`. |
 | `--allow-self-loops` | off | Allow hubs of the form `"A--A"`; self-loops become warnings instead of errors and are kept in the collapsed pair list. |
+| `--allow-stub-edges` | off | When enabled, a hub with __exactly one surviving leg__ is repaired by inserting a synthetic weak stub edge for the missing leg instead of raising a fatal `hub_degree` error:|
 | `--strict` | off | Escalate validation warnings to errors (non-zero exit). |
 | `--dry-run` | off | Validate and report without writing any artifact. |
 | `--log-level LEVEL` | `INFO` | Logging verbosity. |
@@ -654,7 +655,7 @@ python -m src.clustering.functional_motifs \
 
 | Option | Default | Description |
 |---|---:|---|
-| `--grouping {motif,loadings,hybrid,none}` | `motif` | Grouping algorithm. |
+| `--grouping {motif,loadings,hybrid,family, none}` | `motif` | Grouping algorithm. |
 | `--polarity-split` | off | Split a group by seed-mode polarity when the minority is large enough. |
 | `--polarity-min-members INT` | `3` | Minimum minority size for a polarity split. |
 | `--max-group-size INT` | `12` | Size cap that can trigger deterministic merging. |
@@ -974,7 +975,7 @@ participation, dominant mode, group ID, and the full participation row.
 
 The pathway graph is exported with NetworkX for interactive exploration in yEd. Node
 attributes: `group_id`, `label`, `size`, `dominant_mode`, `region_composition` (JSON),
-`centroid` (JSON), `coherence`, `is_background`, `is_singleton`. Edge attributes:
+`centroid` (JSON), `coherence`, `is_background`, `is_singleton`, `is_parameters`. Edge attributes:
 `source_group`, `target_group`, `label`, `weight`, `abs_weight`, `polarity`,
 `contribution_by_mode` (JSON), `threshold_flag`, `topN_flag`, `intra_flag`, `weight_ratio`,
 `edge_width`, `edge_color` and, with `--pathway-source matrix|both`, `z_contribution`.
@@ -1002,6 +1003,7 @@ chosen by role:
 
 | Role | Fill | Border | Shape |
 |---|---|---|---|
+| parameters (`is_parameters`) | `#FFFDE7` | `#F9A825` | `roundrectangle` |
 | background (`is_background`) | `#EEEEEE` | `#9E9E9E` | `rectangle` |
 | singleton (`is_singleton`) | `#FFF3E0` | `#EF6C00` | `ellipse` |
 | default | `#E8EEF7` | `#37474F` | `roundrectangle` |
@@ -1018,6 +1020,26 @@ so a single-line label keeps the legacy `80 × 30` box while multi-line or long 
 instead of overflowing. The grid step tracks the largest box in the diagram, so nodes cannot
 overlap. The sizing is a pure function of the label text (no font metrics), keeping the export
 byte-identical under a fixed `SOURCE_DATE_EPOCH`.
+
+When the CLI is used (`python -m src.clustering.functional_motifs`), the document also
+carries one extra **informational node** whose multi-line label records every CLI option and
+the effective value used for the run. Its node id is `__parameters_used__`, its first line is
+the title `parameters used`, and each following line is one `--flag: value` pair:
+
+```text
+parameters used
+--input: data/processed/<stem>/eigen.json
+--outdir: data/processed
+--participation: rms
+--grouping: hybrid
+--intra: True
+...
+```
+
+The node is never connected to another node (zero in/out edges) and is excluded from the
+recorded `n_nodes` / `n_edges`, so it can be dragged into place with a layout editor without
+affecting the pathway. Its `is_parameters` role gives it the distinct amber fill above.
+Library callers opt in through the `cli_parameters` argument of `write_graphml_pathway`.
 
 The graph element records `n_nodes`, `n_edges`, `abs_max`, `weight_normalization`,
 `edge_style` (the width formula and colour palette), `pathway_source`, `pathway_weight_rule`

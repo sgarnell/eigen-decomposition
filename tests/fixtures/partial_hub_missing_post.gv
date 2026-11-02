@@ -1,0 +1,11 @@
+// Phase 01 fixture -- a partial hub whose post leg was removed upstream.
+// Only the pre edge (M1 -> "M1--M2") survives, so the hub is repairable with
+// --allow-stub-edges and otherwise stays a hub_degree error.
+digraph G {
+	M1 -> "M1--M2" [label="Zscore = 0.5" color=blue penwidth=1.0]
+	"M1--M2" [label="" color=cyan shape=circle style=filled]
+	M1 [label="M1
+cent= 0.1" color=brown2 shape=circle]
+	M2 [label="M2
+cent= 0.1" color=brown2 shape=circle]
+}

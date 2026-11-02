@@ -27,6 +27,11 @@ next to the Phase 01-03 artifacts)::
     <outdir>/<stem>/motifs.data.json         # per-neuron tables (--save-data)
     <outdir>/<stem>/motifs.pathway.graphml   # pathway graph (--no-graphml opts out)
 
+When the CLI is used, that GraphML also carries a single unconnected ``parameters used``
+node that records every CLI option and its effective value, so each graph documents the
+exact run that produced it; it is excluded from the recorded node/edge counts and can be
+repositioned freely with a layout editor.
+
 The artifact stem inherits the Phase 03 variant suffix (``eigen.json`` ->
 ``motifs.json``; ``eigen.f8652585.json`` -> ``motifs.f8652585.json``) and adds
 ``.<config_hash8>`` for any non-default Phase 04 config, so a variant run can never
@@ -62,7 +67,7 @@ CLI
         [--relative-threshold 0.25] [--absolute-threshold 0.05] [--quantile 0.8] \\
         [--participation-threshold 0.1] [--min-members 3] [--max-members 0] \\
         [--family-jaccard 0.2] [--family-polarity 0.5] [--link-min-jaccard 0.1] \\
-        [--grouping {motif,loadings,hybrid,none}] [--polarity-split] \\
+        [--grouping {motif,loadings,hybrid,family,none}] [--polarity-split] \\
         [--polarity-min-members 3] [--max-group-size 12] [--n-groups N|auto] \\
         [--linkage {average,complete,single,ward}] [--affinity {cosine,euclidean}] \\
         [--merge-threshold 0.9] \\
@@ -164,6 +169,9 @@ __all__ = [
     "GRAPHML_EDGE_KEYS",
     "GRAPHML_GRAPH_KEYS",
     "GRAPHML_NODE_KEYS",
+    "GRAPHML_PARAMETERS_NODE_ID",
+    "GRAPHML_PARAMETERS_ROLE_KEY",
+    "GRAPHML_PARAMETERS_TITLE",
     "GROUP_KEYS",
     "INPUT_VARIANT_PREFIX",
     "LINK_CLASSES",
@@ -210,6 +218,7 @@ __all__ = [
     "build_pathway",
     "build_sidecar_arrays",
     "classify_link",
+    "cli_parameters_from_args",
     "compute_participation",
     "derive_region",
     "extract_motif",
@@ -304,7 +313,7 @@ DEFAULT_INTRA = True
 DEFAULT_MAX_DIAGRAM_NODES = 24
 DEFAULT_DIAGRAM_LAYOUT = "circular"
 
-GROUPINGS = ("motif", "loadings", "hybrid", "none")
+GROUPINGS = ("motif", "loadings", "hybrid", "family", "none")
 LINKAGES = ("average", "complete", "single", "ward")
 AFFINITIES = ("cosine", "euclidean")
 PATHWAY_SOURCES = ("mode", "matrix", "both")
@@ -378,8 +387,9 @@ GRAPHML_NODE_GRID_GAP = 40.0
 #: by one ``cell_type (count)`` line per entry of the node's ``region_composition``.
 GRAPHML_NODE_LABEL_SEPARATOR = "\n"
 #: Node role -> (fill colour, border colour, yFiles shape type).  The role is derived from
-#: ``is_background`` / ``is_singleton``, so no new GraphML scalar keys are needed.
+#: ``is_parameters`` / ``is_background`` / ``is_singleton``.
 GRAPHML_NODE_STYLES = {
+    "parameters": ("#FFFDE7", "#F9A825", "roundrectangle"),
     "background": ("#EEEEEE", "#9E9E9E", "rectangle"),
     "singleton": ("#FFF3E0", "#EF6C00", "ellipse"),
     "default": ("#E8EEF7", "#37474F", "roundrectangle"),
@@ -395,7 +405,18 @@ GRAPHML_NODE_KEYS = (
     "coherence",
     "is_background",
     "is_singleton",
+    "is_parameters",
 )
+#: Node id of the informational "parameters used" node added to the pathway GraphML when
+#: the CLI parameters are supplied.  It is never connected to another node, so a layout
+#: editor (yEd) can place it freely; pathway node ids are always ``G00``..``Gnn``, so this
+#: namespaced id cannot collide.
+GRAPHML_PARAMETERS_NODE_ID = "__parameters_used__"
+#: First line (title) of the multi-line yEd label.
+GRAPHML_PARAMETERS_TITLE = "parameters used"
+#: Attribute key that selects the distinct :data:`GRAPHML_NODE_STYLES` "parameters" role.
+GRAPHML_PARAMETERS_ROLE_KEY = "is_parameters"
+
 GRAPHML_EDGE_KEYS = (
     "source_group",
     "target_group",
@@ -2226,6 +2247,8 @@ def build_groups(
     neuron_ids: Sequence[str],
     regions: Sequence[str],
     node_metadata: dict[str, dict[str, Any]] | None = None,
+    families: Sequence[MotifFamily] | None = None,
+    links: Sequence[MotifLink] | None = None,
 ) -> tuple[list[NeuronGroup], np.ndarray | None, np.ndarray | None, int]:
     """Build 04C groups and return groups, labels, centroids, and split count."""
     matrix = np.asarray(participation, dtype=np.float64)
@@ -2238,7 +2261,21 @@ def build_groups(
     if np.any(zero_rows):
         LOGGER.info("[%s] removed and re-attached %d zero-vector neuron(s) as G00", CODE_ZERO_VECTOR, int(zero_rows.sum()))
     features = np.hstack([left, right])
-    if config.grouping == "motif" or config.grouping == "hybrid":
+    home_labels: np.ndarray | None = None
+    family_signs: np.ndarray | None = None
+    if config.grouping == "family":
+        if families is None:
+            raise MotifValidationError("grouping 'family' requires the merged families")
+        fam_of_mode = _family_of_mode(families, n_modes)
+        if np.any(fam_of_mode < 0):
+            raise MotifValidationError("grouping 'family' requires every mode to belong to a family")
+        home_labels = initial_group_labels(matrix)
+        labels = np.where(
+            home_labels == 0, 0, fam_of_mode[home_labels - 1] + 1
+        ).astype("<i8")
+        active_features = matrix
+        family_signs = _family_mode_signs(families, links or (), n_modes)
+    elif config.grouping == "motif" or config.grouping == "hybrid":
         labels = initial_group_labels(matrix)
         active_features = matrix if config.grouping == "motif" else features
     else:
@@ -2252,12 +2289,33 @@ def build_groups(
     signs = _dominant_signs(left, right)
     split_count = 0
     if config.polarity_split:
-        labels, split_count = split_large_groups(labels, signs, polarity_min_members=config.polarity_min_members)
-    labels = merge_similar_groups(labels, active_features, max_group_size=config.max_group_size, merge_threshold=config.merge_threshold)
+        if config.grouping == "family":
+            # Split in the family frame: a member's polarity is its dominant
+            # sign in its home mode, aligned by that mode's family sign, and
+            # stored in the column of its family so split_large_groups reads
+            # the right column for each family label.
+            fam_of_mode = _family_of_mode(families, n_modes)
+            n_families = int(fam_of_mode.max(initial=-1)) + 1
+            family_frame = np.ones((n_neurons, n_families), dtype="<i8")
+            rows = np.flatnonzero(home_labels > 0)
+            family_frame[rows, fam_of_mode[home_labels[rows] - 1]] = (
+                signs[rows, home_labels[rows] - 1] * family_signs[home_labels[rows] - 1]
+            )
+            labels, split_count = split_large_groups(
+                labels, family_frame, polarity_min_members=config.polarity_min_members
+            )
+        else:
+            labels, split_count = split_large_groups(labels, signs, polarity_min_members=config.polarity_min_members)
+    if config.grouping != "family":
+        # The max-group-size reduction would merge distinct family tiles into
+        # one another; family tiles are legitimately large, so it is skipped.
+        labels = merge_similar_groups(labels, active_features, max_group_size=config.max_group_size, merge_threshold=config.merge_threshold)
     if config.grouping == "motif" and not config.polarity_split:
         labels = initial_group_labels(matrix)
     labels = np.asarray(labels, dtype="<i8")
     signed = matrix * signs
+    if config.grouping == "family" and family_signs is not None:
+        signed = signed * family_signs[None, :]
     coherence = group_coherence(signed, labels)
     groups: list[NeuronGroup] = []
     metadata = node_metadata or {}
@@ -2296,6 +2354,66 @@ def _family_of_mode(
             if 1 <= int(mode) <= int(n_modes):
                 array[int(mode) - 1] = index
     return array
+
+
+def _family_mode_signs(
+    families: Sequence[MotifFamily] | Sequence[dict[str, Any]],
+    links: Sequence[MotifLink] | Sequence[dict[str, Any]],
+    n_modes: int,
+) -> np.ndarray:
+    """``(k,) <i8`` sign of each mode in its family's frame (+1/-1).
+
+    Mirrors the alignment rule documented on :func:`merge_families`: within a
+    family the lowest mode is the representative (sign ``+1``); a ``stable``
+    link keeps the sign and a ``flipped`` link negates it, propagated by BFS
+    over the family's modes.  Modes in no multi-mode family get ``+1``.
+    """
+    signs = np.ones(int(n_modes), dtype="<i8")
+    adjacency: dict[int, list[tuple[int, int]]] = {}
+    for link in links:
+        if isinstance(link, dict):
+            classification = link.get("classification")
+            source = int(link.get("source_mode", 0))
+            target = int(link.get("target_mode", 0))
+        else:
+            classification = link.classification
+            source = int(link.source_mode)
+            target = int(link.target_mode)
+        if classification not in ("stable", "flipped"):
+            continue
+        if not (1 <= source <= int(n_modes) and 1 <= target <= int(n_modes)) or source == target:
+            continue
+        sign = 1 if classification == "stable" else -1
+        adjacency.setdefault(source, []).append((target, sign))
+        adjacency.setdefault(target, []).append((source, sign))
+    for family in families:
+        modes = family.get("modes") if isinstance(family, dict) else family.modes
+        mode_list = sorted(int(mode) for mode in (modes or ()))
+        if len(mode_list) < 2:
+            continue
+        member = set(mode_list)
+        assigned: dict[int, int] = {mode_list[0]: 1}
+        stack = [mode_list[0]]
+        while stack:
+            node = stack.pop()
+            for neighbour, sign in adjacency.get(node, ()):
+                if neighbour not in member:
+                    continue
+                wanted = assigned[node] * sign
+                if neighbour in assigned:
+                    if assigned[neighbour] != wanted:
+                        LOGGER.warning(
+                            "[%s] modes %d and %d disagree on the family polarity",
+                            CODE_FAMILY_CONFLICT,
+                            neighbour,
+                            node,
+                        )
+                else:
+                    assigned[neighbour] = wanted
+                    stack.append(neighbour)
+        for mode, sign in assigned.items():
+            signs[mode - 1] = sign
+    return signs
 
 
 def _link_matrices(
@@ -3396,6 +3514,8 @@ def build_motif_analysis(
             neuron_ids=neuron_order,
             regions=regions,
             node_metadata=node_metadata,
+            families=merged_families,
+            links=links,
         )
         analysis.groups = [group.to_dict() for group in groups]
         analysis.metadata.update(_group_statistics(groups, n_polarity_split))
@@ -3845,6 +3965,8 @@ def _graphml_edge_width(abs_weight: float, abs_max: float) -> tuple[float, float
 
 def _graphml_node_style(attributes: dict[str, Any]) -> tuple[str, str, str]:
     """Return ``(fill_color, border_color, shape_type)`` for a pathway node's realizer."""
+    if attributes.get("is_parameters"):
+        return GRAPHML_NODE_STYLES["parameters"]
     if attributes.get("is_background"):
         return GRAPHML_NODE_STYLES["background"]
     if attributes.get("is_singleton"):
@@ -3971,6 +4093,8 @@ def graphml_node_metadata(
         "is_background": bool(record.get("is_background", False)),
         "is_singleton": bool(record.get("is_singleton", False)),
     }
+    if record.get("is_parameters"):
+        metadata["is_parameters"] = True
     dominant_mode = node.get("dominant_mode")
     if dominant_mode is not None:
         metadata["dominant_mode"] = int(dominant_mode)
@@ -4244,12 +4368,14 @@ def write_graphml_pathway(
     source: str | None = None,
     centroids: Any = None,
     z_by_edge: dict[tuple[str, str], float] | None = None,
+    cli_parameters: dict[str, str] | None = None,
 ) -> Path:
     """Write the NetworkX-backed GraphML pathway artifact and return its path.
 
     NetworkX is imported lazily (the Matplotlib precedent of Phases 02/03) and stays the
     mandated GraphML backend; the output is deterministic (fixed node/edge/attribute order,
-    primitives or sorted-key JSON only) and is written atomically.
+    primitives or sorted-key JSON only) and is written atomically.  ``cli_parameters``,
+    when supplied, adds a single unconnected "parameters used" node that records the run.
     """
     try:
         import networkx as nx
@@ -4277,6 +4403,23 @@ def write_graphml_pathway(
             node_id,
             **graphml_node_metadata(
                 node, groups_by_id.get(str(node.get("group_id"))), centroid_by_id.get(node_id)
+            ),
+        )
+    if cli_parameters:
+        parameter_lines = [GRAPHML_PARAMETERS_TITLE]
+        parameter_lines.extend(
+            f"{flag}: {text}" for flag, text in cli_parameters.items()
+        )
+        graph.add_node(
+            GRAPHML_PARAMETERS_NODE_ID,
+            **graphml_node_metadata(
+                {
+                    "node_id": GRAPHML_PARAMETERS_NODE_ID,
+                    "group_id": GRAPHML_PARAMETERS_NODE_ID,
+                    "label": GRAPHML_NODE_LABEL_SEPARATOR.join(parameter_lines),
+                    "size": 0,
+                },
+                {GRAPHML_PARAMETERS_ROLE_KEY: True},
             ),
         )
     abs_max_raw = payload.get("abs_max")
@@ -4724,6 +4867,7 @@ def write_artifact_set(
     force_config_hash: bool = False,
     report: ValidationReport | None = None,
     log: logging.Logger | None = None,
+    cli_parameters: dict[str, str] | None = None,
 ) -> dict[str, Path]:
     """Write the requested artifacts and return the paths that were written.
 
@@ -4761,6 +4905,7 @@ def write_artifact_set(
                 source=analysis.pathway.get("source"),
                 centroids=analysis.arrays.get("group_centroids"),
                 z_by_edge=(analysis.diagnostics.get("pathway") or {}).get("z_contributions"),
+                cli_parameters=cli_parameters,
             )
         except Exception as exc:
             report.error(
@@ -5048,6 +5193,41 @@ def _config_from_args(args: argparse.Namespace) -> MotifConfig:
     )
 
 
+def cli_parameters_from_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> dict[str, str]:
+    """Return an ordered ``{canonical_flag: value}`` map for every CLI option.
+
+    One entry per argparse destination, in declaration order; an alias collapses to the
+    first declared flag, so ``--pathway-weight`` wins over ``--pathway-mode-weights``.  A
+    ``store_false`` toggle that only exists as ``--no-*`` is rendered with the positive
+    destination-derived flag, so the line reads ``--intra: True``.  The values are the
+    effective values after default resolution; ``None`` renders as the literal string and
+    list values (``--input``) are space-joined.  The result is a pure, deterministic
+    function of ``(parser, args)``, keeping the GraphML node byte-reproducible.
+    """
+    rendered: dict[str, str] = {}
+    seen: set[str] = set()
+    present = vars(args)
+    for action in parser._actions:  # argparse declares actions in registration order
+        if not action.option_strings or action.dest in seen or action.dest not in present:
+            continue
+        seen.add(action.dest)
+        value = present[action.dest]
+        if isinstance(value, (list, tuple)):
+            text = " ".join(str(item) for item in value)
+        else:
+            text = "None" if value is None else str(value)
+        flag = next(
+            (name for name in action.option_strings if name.startswith("--")),
+            action.option_strings[0],
+        )
+        if action.const is False:  # a --no-* store_false toggle
+            flag = "--" + action.dest.replace("_", "-")
+        rendered[flag] = text
+    return rendered
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point; returns the process exit code.
 
@@ -5064,6 +5244,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     config = _config_from_args(args)
+    cli_parameters = cli_parameters_from_args(parser, args)
     anatomy = None
     if args.anatomy:
         try:
@@ -5131,6 +5312,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 force_config_hash=args.config_hash,
                 report=report,
                 log=LOGGER,
+                cli_parameters=cli_parameters,
             )
 
         for issue in report.warnings:

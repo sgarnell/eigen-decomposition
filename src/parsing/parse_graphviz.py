@@ -31,11 +31,21 @@ CLI
         --input data/raw_dot/FB4Yaffect_FB45_999prePost_001_all.gv \\
         --outdir data/processed \\
         [--glob '*.gv'] [--strict] [--min-pre X] [--min-post X] \\
-        [--top-k N] [--allow-self-loops] [--dry-run] [--log-level INFO]
+        [--top-k N] [--allow-self-loops] [--allow-stub-edges] \\
+        [--stub-z-score Z] [--dry-run] [--log-level INFO]
 
 A hub named ``"A--A"`` collapses to the self-loop ``(A, A)``.  Self-loops are
 validation *errors* by default; ``--allow-self-loops`` downgrades them to
 warnings and keeps them in the ``pairs`` list.
+
+A *partial* hub (exactly one surviving leg, e.g. after upstream weak-leg
+removal) is a ``hub_degree`` error by default.  ``--allow-stub-edges`` repairs
+it by inserting a synthetic weak stub edge for the missing leg
+(``z=0.1`` by default, overridable with ``--stub-z-score``; ``color=grey``,
+``penwidth=0.5``), reported as a ``stub_edge`` warning and recorded in
+``metadata.synthetic_edges``.  This keeps downstream phases' square matrices
+and connectivity intact while the stub's weak z-score minimises its analytical
+impact.  Hubs missing *both* legs remain unrepairable errors.
 """
 
 from __future__ import annotations
@@ -75,6 +85,7 @@ __all__ = [
     "artifact_path",
     "build_argument_parser",
     "build_parsed_graph",
+    "CODE_STUB_EDGE",
     "is_hub_name",
     "main",
     "normalize_label",
@@ -85,6 +96,10 @@ __all__ = [
     "resolve_inputs",
     "split_hub_name",
     "strip_quotes",
+    "STUB_COLOR",
+    "STUB_PENWIDTH",
+    "STUB_Z_SCORE",
+    "SYNTHETIC_EDGE_KEYS",
     "validate_payload_schema",
     "write_artifact",
 ]
@@ -103,6 +118,13 @@ DEFAULT_PARSER_NAME = "pydot"
 
 SEVERITY_ERROR = "error"
 SEVERITY_WARNING = "warning"
+
+#: Synthetic "stub" edge used to repair a partial hub (``--allow-stub-edges``).
+#: The weak z-score keeps the repaired pair's downstream influence minimal while
+#: still preserving the graph topology (see ``execution-plans/01_update_b.md``).
+STUB_Z_SCORE = 0.1
+STUB_COLOR = "grey"
+STUB_PENWIDTH = 0.5
 
 #: Tolerant ``Zscore = <float>`` matcher (labels are quoted by pydot and the file
 #: mixes ``Zscore = 0.8`` with ``Zscore=0.8``-style spacing).
@@ -127,6 +149,7 @@ CODE_UNEXPECTED_ATTRIBUTE = "unexpected_attribute"
 CODE_MULTI_GRAPH = "multi_graph"
 CODE_PARSE_FAILURE = "parse_failure"
 CODE_SCHEMA = "schema"
+CODE_STUB_EDGE = "stub_edge"
 
 #: Attributes understood by this parser; anything else is a warning.
 NEURON_ATTRIBUTES = frozenset(
@@ -156,11 +179,12 @@ PAIR_KEYS = frozenset({"source", "target", "pre_z", "post_z"})
 RAW_EDGE_KEYS = frozenset({"src", "dst", "is_hub", "z_score", "penwidth", "color"})
 STATS_KEYS = frozenset({"min", "mean", "max"})
 FILTER_KEYS = frozenset({"type", "value", "removed"})
+SYNTHETIC_EDGE_KEYS = frozenset({"hub", "missing_leg", "z_score", "color"})
 METADATA_KEYS = frozenset(
     {
         "n_neurons", "n_hubs", "n_raw_edges", "n_pairs", "density", "reciprocity",
         "pre_stats", "post_stats", "cent_distribution", "filters", "parser",
-        "parser_version", "created_utc", "allow_self_loops",
+        "parser_version", "created_utc", "allow_self_loops", "synthetic_edges",
     }
 )
 
@@ -444,6 +468,41 @@ class _EdgeRecord:
     z_score: float | None
     penwidth: float | None
     color: str | None
+    synthetic: bool = False
+
+
+def _stub_edge(
+    hub_name: str, hub_token: str, missing_leg: str, z_score: float
+) -> _EdgeRecord | None:
+    """Build the synthetic counterpart of a missing hub leg.
+
+    *missing_leg* is ``"pre"`` or ``"post"``.  The new endpoint is taken from the
+    hub name itself (``"A--B"`` -> ``A`` / ``B``), because the removed leg no
+    longer carries it.  Returns ``None`` when the hub is not repairable, i.e. when
+    the derived endpoint is itself a hub (e.g. a nested ``"A--B--C"`` name).
+    """
+    parts = split_hub_name(hub_name)
+    if parts is None:
+        return None
+    lhs, rhs = parts
+    if missing_leg == "post":
+        if is_hub_name(rhs):
+            return None
+        raw_src, raw_dst, src, dst = hub_token, rhs, hub_name, rhs
+    else:
+        if is_hub_name(lhs):
+            return None
+        raw_src, raw_dst, src, dst = lhs, hub_token, lhs, hub_name
+    return _EdgeRecord(
+        raw_src=raw_src,
+        raw_dst=raw_dst,
+        src=src,
+        dst=dst,
+        z_score=z_score,
+        penwidth=STUB_PENWIDTH,
+        color=STUB_COLOR,
+        synthetic=True,
+    )
 
 
 def _attributes(element: Any) -> dict[str, str]:
@@ -816,6 +875,23 @@ def _validate_metadata_schema(metadata: Any) -> list[str]:
             if not isinstance(entry["removed"], int) or isinstance(entry["removed"], bool):
                 problems.append(f"{where}.removed: expected an integer")
 
+    synthetic_edges = metadata["synthetic_edges"]
+    if not isinstance(synthetic_edges, list):
+        problems.append("metadata.synthetic_edges: expected a list")
+    else:
+        for index, entry in enumerate(synthetic_edges):
+            where = f"metadata.synthetic_edges[{index}]"
+            if not _check_keys(problems, where, entry, SYNTHETIC_EDGE_KEYS):
+                continue
+            if not isinstance(entry["hub"], str):
+                problems.append(f"{where}.hub: expected a string")
+            if entry["missing_leg"] not in ("pre", "post"):
+                problems.append(f"{where}.missing_leg: expected 'pre' or 'post'")
+            if not _is_number(entry["z_score"]):
+                problems.append(f"{where}.z_score: expected a number")
+            if not isinstance(entry["color"], str):
+                problems.append(f"{where}.color: expected a string")
+
     if not isinstance(metadata["parser"], str):
         problems.append("metadata.parser: expected a string")
     if not isinstance(metadata["parser_version"], str):
@@ -840,6 +916,8 @@ def build_parsed_graph(
     min_post: float | None = None,
     top_k: int | None = None,
     allow_self_loops: bool = False,
+    allow_stub_edges: bool = False,
+    stub_z_score: float = STUB_Z_SCORE,
     now: Any = None,
 ) -> tuple[ParsedGraph, ValidationReport]:
     """Parse *source_path* and return ``(ParsedGraph, ValidationReport)``.
@@ -859,11 +937,21 @@ def build_parsed_graph(
     * a hub ``"A--A"`` collapses to the self-loop ``(A, A)``: by default that is
       a ``self_loop`` *error*, while *allow_self_loops* downgrades it to a
       warning and keeps the pair (``metadata.allow_self_loops`` records the
-      choice).
+      choice);
+    * a *partial* hub (exactly one surviving leg) is a ``hub_degree`` *error* by
+      default; when *allow_stub_edges* is set it is repaired by inserting a
+      synthetic weak stub edge for the missing leg (``z_score=stub_z_score``,
+      ``color='grey'``, ``penwidth=0.5``), which is reported as a ``stub_edge``
+      warning and recorded in ``metadata.synthetic_edges``.  Hubs with zero or
+      more than one leg on either side remain unrepairable errors.
     """
     path = Path(source_path)
     if not path.is_file():
         raise FileNotFoundError(f"no such Graphviz file: {path}")
+    if allow_stub_edges and not _z_is_valid(float(stub_z_score)):
+        raise ValueError(
+            f"stub_z_score must be a finite, non-negative number, got {stub_z_score!r}"
+        )
 
     report = ValidationReport()
     digest = sha256_file(path)
@@ -889,6 +977,7 @@ def build_parsed_graph(
             post_edges[record.raw_src].append(record)
 
     pairs: list[NeuronPair] = []
+    synthetic_edges: list[dict[str, Any]] = []
     seen_pairs: dict[tuple[str, str], str] = {}
     for token in sorted(hub_tokens):
         name = strip_quotes(token) or ""
@@ -896,6 +985,18 @@ def build_parsed_graph(
             continue
         pre = pre_edges.get(token, [])
         post = post_edges.get(token, [])
+        stub_record: _EdgeRecord | None = None
+        missing_leg: str | None = None
+        if allow_stub_edges and len(pre) == 1 and not post:
+            missing_leg = "post"
+            stub_record = _stub_edge(name, token, missing_leg, stub_z_score)
+            if stub_record is not None:
+                post = [stub_record]
+        elif allow_stub_edges and not pre and len(post) == 1:
+            missing_leg = "pre"
+            stub_record = _stub_edge(name, token, missing_leg, stub_z_score)
+            if stub_record is not None:
+                pre = [stub_record]
         if len(pre) != 1 or len(post) != 1:
             report.error(
                 CODE_HUB_DEGREE,
@@ -903,6 +1004,21 @@ def build_parsed_graph(
                 "expected exactly 1 of each",
             )
             continue
+        if stub_record is not None:
+            report.warning(
+                CODE_STUB_EDGE,
+                f"hub {name!r} missing {missing_leg} edge; synthetic stub created "
+                f"(z={stub_z_score}, color={STUB_COLOR})",
+            )
+            records.append(stub_record)
+            synthetic_edges.append(
+                {
+                    "hub": name,
+                    "missing_leg": missing_leg,
+                    "z_score": float(stub_z_score),
+                    "color": STUB_COLOR,
+                }
+            )
         pre_edge, post_edge = pre[0], post[0]
         pre_z = pre_edge.z_score
         post_z = post_edge.z_score
@@ -1011,6 +1127,9 @@ def build_parsed_graph(
         "parser_version": pydot_version(),
         "created_utc": utc_timestamp(now),
         "allow_self_loops": bool(allow_self_loops),
+        "synthetic_edges": sorted(
+            synthetic_edges, key=lambda entry: (entry["hub"], entry["missing_leg"])
+        ),
     }
 
     parsed = ParsedGraph(
@@ -1034,6 +1153,8 @@ def parse_graphviz_file(
     min_post: float | None = None,
     top_k: int | None = None,
     allow_self_loops: bool = False,
+    allow_stub_edges: bool = False,
+    stub_z_score: float = STUB_Z_SCORE,
     now: Any = None,
 ) -> ParsedGraph:
     """Parse *source_path* into a :class:`ParsedGraph`.
@@ -1049,6 +1170,8 @@ def parse_graphviz_file(
         min_post=min_post,
         top_k=top_k,
         allow_self_loops=allow_self_loops,
+        allow_stub_edges=allow_stub_edges,
+        stub_z_score=stub_z_score,
         now=now,
     )
     if report.has_errors or (strict and report.warnings):
@@ -1161,6 +1284,21 @@ def build_argument_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--allow-stub-edges",
+        action="store_true",
+        help=(
+            "repair hubs with exactly one surviving leg by inserting a synthetic weak "
+            f"stub edge for the missing leg (z={STUB_Z_SCORE}, color={STUB_COLOR}) "
+            "instead of raising a hub_degree error"
+        ),
+    )
+    parser.add_argument(
+        "--stub-z-score",
+        type=float,
+        default=STUB_Z_SCORE,
+        help=f"z-score assigned to synthetic stub edges (default: {STUB_Z_SCORE})",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="validate and report without writing any artifact",
@@ -1201,6 +1339,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 min_post=args.min_post,
                 top_k=args.top_k,
                 allow_self_loops=args.allow_self_loops,
+                allow_stub_edges=args.allow_stub_edges,
+                stub_z_score=args.stub_z_score,
             )
         except GraphvizValidationError as exc:
             LOGGER.error("%s: %s", source.name, exc)

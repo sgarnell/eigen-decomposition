@@ -1,0 +1,166 @@
+diff --git a/src/clustering/functional_motifs.py b/src/clustering/functional_motifs.py
+index 2213b65..0802f67 100644
+--- a/src/clustering/functional_motifs.py
++++ b/src/clustering/functional_motifs.py
+@@ -62,7 +62,7 @@ CLI
+         [--relative-threshold 0.25] [--absolute-threshold 0.05] [--quantile 0.8] \\
+         [--participation-threshold 0.1] [--min-members 3] [--max-members 0] \\
+         [--family-jaccard 0.2] [--family-polarity 0.5] [--link-min-jaccard 0.1] \\
+-        [--grouping {motif,loadings,hybrid,none}] [--polarity-split] \\
++        [--grouping {motif,loadings,hybrid,family,none}] [--polarity-split] \\
+         [--polarity-min-members 3] [--max-group-size 12] [--n-groups N|auto] \\
+         [--linkage {average,complete,single,ward}] [--affinity {cosine,euclidean}] \\
+         [--merge-threshold 0.9] \\
+@@ -304,7 +304,7 @@ DEFAULT_INTRA = True
+ DEFAULT_MAX_DIAGRAM_NODES = 24
+ DEFAULT_DIAGRAM_LAYOUT = "circular"
+ 
+-GROUPINGS = ("motif", "loadings", "hybrid", "none")
++GROUPINGS = ("motif", "loadings", "hybrid", "family", "none")
+ LINKAGES = ("average", "complete", "single", "ward")
+ AFFINITIES = ("cosine", "euclidean")
+ PATHWAY_SOURCES = ("mode", "matrix", "both")
+@@ -2226,6 +2226,8 @@ def build_groups(
+     neuron_ids: Sequence[str],
+     regions: Sequence[str],
+     node_metadata: dict[str, dict[str, Any]] | None = None,
++    families: Sequence[MotifFamily] | None = None,
++    links: Sequence[MotifLink] | None = None,
+ ) -> tuple[list[NeuronGroup], np.ndarray | None, np.ndarray | None, int]:
+     """Build 04C groups and return groups, labels, centroids, and split count."""
+     matrix = np.asarray(participation, dtype=np.float64)
+@@ -2238,7 +2240,21 @@ def build_groups(
+     if np.any(zero_rows):
+         LOGGER.info("[%s] removed and re-attached %d zero-vector neuron(s) as G00", CODE_ZERO_VECTOR, int(zero_rows.sum()))
+     features = np.hstack([left, right])
+-    if config.grouping == "motif" or config.grouping == "hybrid":
++    home_labels: np.ndarray | None = None
++    family_signs: np.ndarray | None = None
++    if config.grouping == "family":
++        if families is None:
++            raise MotifValidationError("grouping 'family' requires the merged families")
++        fam_of_mode = _family_of_mode(families, n_modes)
++        if np.any(fam_of_mode < 0):
++            raise MotifValidationError("grouping 'family' requires every mode to belong to a family")
++        home_labels = initial_group_labels(matrix)
++        labels = np.where(
++            home_labels == 0, 0, fam_of_mode[home_labels - 1] + 1
++        ).astype("<i8")
++        active_features = matrix
++        family_signs = _family_mode_signs(families, links or (), n_modes)
++    elif config.grouping == "motif" or config.grouping == "hybrid":
+         labels = initial_group_labels(matrix)
+         active_features = matrix if config.grouping == "motif" else features
+     else:
+@@ -2252,12 +2268,33 @@ def build_groups(
+     signs = _dominant_signs(left, right)
+     split_count = 0
+     if config.polarity_split:
+-        labels, split_count = split_large_groups(labels, signs, polarity_min_members=config.polarity_min_members)
+-    labels = merge_similar_groups(labels, active_features, max_group_size=config.max_group_size, merge_threshold=config.merge_threshold)
++        if config.grouping == "family":
++            # Split in the family frame: a member's polarity is its dominant
++            # sign in its home mode, aligned by that mode's family sign, and
++            # stored in the column of its family so split_large_groups reads
++            # the right column for each family label.
++            fam_of_mode = _family_of_mode(families, n_modes)
++            n_families = int(fam_of_mode.max(initial=-1)) + 1
++            family_frame = np.ones((n_neurons, n_families), dtype="<i8")
++            rows = np.flatnonzero(home_labels > 0)
++            family_frame[rows, fam_of_mode[home_labels[rows] - 1]] = (
++                signs[rows, home_labels[rows] - 1] * family_signs[home_labels[rows] - 1]
++            )
++            labels, split_count = split_large_groups(
++                labels, family_frame, polarity_min_members=config.polarity_min_members
++            )
++        else:
++            labels, split_count = split_large_groups(labels, signs, polarity_min_members=config.polarity_min_members)
++    if config.grouping != "family":
++        # The max-group-size reduction would merge distinct family tiles into
++        # one another; family tiles are legitimately large, so it is skipped.
++        labels = merge_similar_groups(labels, active_features, max_group_size=config.max_group_size, merge_threshold=config.merge_threshold)
+     if config.grouping == "motif" and not config.polarity_split:
+         labels = initial_group_labels(matrix)
+     labels = np.asarray(labels, dtype="<i8")
+     signed = matrix * signs
++    if config.grouping == "family" and family_signs is not None:
++        signed = signed * family_signs[None, :]
+     coherence = group_coherence(signed, labels)
+     groups: list[NeuronGroup] = []
+     metadata = node_metadata or {}
+@@ -2298,6 +2335,66 @@ def _family_of_mode(
+     return array
+ 
+ 
++def _family_mode_signs(
++    families: Sequence[MotifFamily] | Sequence[dict[str, Any]],
++    links: Sequence[MotifLink] | Sequence[dict[str, Any]],
++    n_modes: int,
++) -> np.ndarray:
++    """``(k,) <i8`` sign of each mode in its family's frame (+1/-1).
++
++    Mirrors the alignment rule documented on :func:`merge_families`: within a
++    family the lowest mode is the representative (sign ``+1``); a ``stable``
++    link keeps the sign and a ``flipped`` link negates it, propagated by BFS
++    over the family's modes.  Modes in no multi-mode family get ``+1``.
++    """
++    signs = np.ones(int(n_modes), dtype="<i8")
++    adjacency: dict[int, list[tuple[int, int]]] = {}
++    for link in links:
++        if isinstance(link, dict):
++            classification = link.get("classification")
++            source = int(link.get("source_mode", 0))
++            target = int(link.get("target_mode", 0))
++        else:
++            classification = link.classification
++            source = int(link.source_mode)
++            target = int(link.target_mode)
++        if classification not in ("stable", "flipped"):
++            continue
++        if not (1 <= source <= int(n_modes) and 1 <= target <= int(n_modes)) or source == target:
++            continue
++        sign = 1 if classification == "stable" else -1
++        adjacency.setdefault(source, []).append((target, sign))
++        adjacency.setdefault(target, []).append((source, sign))
++    for family in families:
++        modes = family.get("modes") if isinstance(family, dict) else family.modes
++        mode_list = sorted(int(mode) for mode in (modes or ()))
++        if len(mode_list) < 2:
++            continue
++        member = set(mode_list)
++        assigned: dict[int, int] = {mode_list[0]: 1}
++        stack = [mode_list[0]]
++        while stack:
++            node = stack.pop()
++            for neighbour, sign in adjacency.get(node, ()):
++                if neighbour not in member:
++                    continue
++                wanted = assigned[node] * sign
++                if neighbour in assigned:
++                    if assigned[neighbour] != wanted:
++                        LOGGER.warning(
++                            "[%s] modes %d and %d disagree on the family polarity",
++                            CODE_FAMILY_CONFLICT,
++                            neighbour,
++                            node,
++                        )
++                else:
++                    assigned[neighbour] = wanted
++                    stack.append(neighbour)
++        for mode, sign in assigned.items():
++            signs[mode - 1] = sign
++    return signs
++
++
+ def _link_matrices(
+     links: Sequence[MotifLink] | Sequence[dict[str, Any]], n_modes: int
+ ) -> tuple[np.ndarray, np.ndarray]:
+@@ -3396,6 +3493,8 @@ def build_motif_analysis(
+             neuron_ids=neuron_order,
+             regions=regions,
+             node_metadata=node_metadata,
++            families=merged_families,
++            links=links,
+         )
+         analysis.groups = [group.to_dict() for group in groups]
+         analysis.metadata.update(_group_statistics(groups, n_polarity_split))

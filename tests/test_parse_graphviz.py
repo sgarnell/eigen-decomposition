@@ -368,6 +368,148 @@ def test_validation_report_helpers() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Stub-edge repair (--allow-stub-edges, see execution-plans/01_update_b.md)
+# ---------------------------------------------------------------------------
+MISSING_POST = FIXTURES / "partial_hub_missing_post.gv"
+MISSING_PRE = FIXTURES / "partial_hub_missing_pre.gv"
+UNREPAIRABLE = FIXTURES / "partial_hub_unrepairable.gv"
+
+
+def test_partial_hub_is_a_fatal_error_by_default() -> None:
+    for fixture in (MISSING_POST, MISSING_PRE):
+        with pytest.raises(GraphvizValidationError) as excinfo:
+            parse_graphviz_file(fixture)
+        report = excinfo.value.report
+        assert report is not None
+        assert parser.CODE_HUB_DEGREE in report.codes(parser.SEVERITY_ERROR)
+
+
+def test_missing_post_leg_is_repaired_with_a_stub() -> None:
+    parsed, report = build_parsed_graph(MISSING_POST, allow_stub_edges=True)
+    assert not report.has_errors, report.to_dict()
+    assert report.codes(parser.SEVERITY_WARNING) == [parser.CODE_STUB_EDGE]
+    assert [(p.source, p.target, p.pre_z, p.post_z) for p in parsed.pairs] == [
+        ("M1", "M2", 0.5, parser.STUB_Z_SCORE)
+    ]
+    assert parsed.metadata["synthetic_edges"] == [
+        {
+            "hub": "M1--M2",
+            "missing_leg": "post",
+            "z_score": parser.STUB_Z_SCORE,
+            "color": parser.STUB_COLOR,
+        }
+    ]
+
+
+def test_missing_pre_leg_is_repaired_with_a_stub() -> None:
+    parsed, report = build_parsed_graph(MISSING_PRE, allow_stub_edges=True)
+    assert not report.has_errors, report.to_dict()
+    assert report.codes(parser.SEVERITY_WARNING) == [parser.CODE_STUB_EDGE]
+    assert [(p.source, p.target, p.pre_z, p.post_z) for p in parsed.pairs] == [
+        ("M3", "M4", parser.STUB_Z_SCORE, 0.7)
+    ]
+    assert parsed.metadata["synthetic_edges"] == [
+        {
+            "hub": "M3--M4",
+            "missing_leg": "pre",
+            "z_score": parser.STUB_Z_SCORE,
+            "color": parser.STUB_COLOR,
+        }
+    ]
+
+
+def test_unrepairable_hub_still_errors_with_the_flag() -> None:
+    _, report = build_parsed_graph(UNREPAIRABLE, allow_stub_edges=True)
+    assert parser.CODE_HUB_DEGREE in report.codes(parser.SEVERITY_ERROR)
+    assert parser.CODE_STUB_EDGE not in report.codes()
+
+
+def test_stub_edge_appears_in_raw_edges_and_degrees() -> None:
+    parsed, _ = build_parsed_graph(MISSING_POST, allow_stub_edges=True)
+    assert parsed.metadata["n_raw_edges"] == 2  # real pre edge + synthetic stub
+    stubs = [edge for edge in parsed.raw_edges if edge.color == parser.STUB_COLOR]
+    assert len(stubs) == 1
+    stub = stubs[0]
+    assert (stub.src, stub.dst, stub.z_score, stub.penwidth) == (
+        "M1--M2",
+        "M2",
+        parser.STUB_Z_SCORE,
+        parser.STUB_PENWIDTH,
+    )
+    assert stub.is_hub
+    neurons = {neuron["neuron_id"]: neuron for neuron in parsed.to_dict()["neurons"]}
+    assert neurons["M2"]["in_degree"] == 1
+    assert neurons["M2"]["post_strength"] == pytest.approx(parser.STUB_Z_SCORE)
+
+
+def test_stub_artifact_conforms_to_the_schema() -> None:
+    parsed, _ = build_parsed_graph(MISSING_POST, allow_stub_edges=True)
+    payload = parsed.to_dict()
+    assert payload["metadata"]["synthetic_edges"]
+    assert validate_payload_schema(payload) == []
+
+
+def test_custom_stub_z_score_is_honored() -> None:
+    parsed, _ = build_parsed_graph(MISSING_POST, allow_stub_edges=True, stub_z_score=0.05)
+    assert parsed.pairs[0].post_z == 0.05
+    assert parsed.metadata["synthetic_edges"][0]["z_score"] == 0.05
+
+
+def test_stub_z_score_must_be_non_negative() -> None:
+    with pytest.raises(ValueError):
+        build_parsed_graph(MISSING_POST, allow_stub_edges=True, stub_z_score=-1.0)
+
+
+def test_stub_repair_is_off_by_default_for_valid_graphs() -> None:
+    parsed, report = build_parsed_graph(TINY)
+    assert parsed.metadata["synthetic_edges"] == []
+    assert parser.CODE_STUB_EDGE not in report.codes()
+
+
+def test_stub_repair_determinism(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", FIXED_EPOCH)
+    first, _ = build_parsed_graph(MISSING_PRE, allow_stub_edges=True)
+    second, _ = build_parsed_graph(MISSING_PRE, allow_stub_edges=True)
+    assert dumps_json(first.to_dict()) == dumps_json(second.to_dict())
+
+
+def test_cli_allow_stub_edges_repairs_and_writes(tmp_path: Path) -> None:
+    assert main(["--input", str(MISSING_POST), "--outdir", str(tmp_path)]) == 1
+    assert list(tmp_path.iterdir()) == []
+    assert (
+        main(
+            [
+                "--input", str(MISSING_POST),
+                "--outdir", str(tmp_path),
+                "--allow-stub-edges",
+            ]
+        )
+        == 0
+    )
+    artifact = tmp_path / MISSING_POST.stem / DEFAULT_ARTIFACT_NAME
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    assert payload["metadata"]["synthetic_edges"][0]["hub"] == "M1--M2"
+    assert payload["pairs"][0]["post_z"] == parser.STUB_Z_SCORE
+
+
+def test_cli_stub_z_score_flag(tmp_path: Path) -> None:
+    assert (
+        main(
+            [
+                "--input", str(MISSING_POST),
+                "--outdir", str(tmp_path),
+                "--allow-stub-edges",
+                "--stub-z-score", "0.02",
+            ]
+        )
+        == 0
+    )
+    artifact = tmp_path / MISSING_POST.stem / DEFAULT_ARTIFACT_NAME
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    assert payload["pairs"][0]["post_z"] == 0.02
+
+
+# ---------------------------------------------------------------------------
 # Filters
 # ---------------------------------------------------------------------------
 def test_min_pre_filter_arithmetic() -> None:
@@ -741,13 +883,16 @@ def test_cli_batch_over_the_real_dataset(tmp_path: Path) -> None:
         pytest.skip(f"reference dataset missing: {REFERENCE}")
 
     # data/raw_dot also holds the hDelta[ABH] dataset, which encodes autapses
-    # (self-loops), so a whole-directory batch needs --allow-self-loops.
+    # (self-loops), so a whole-directory batch needs --allow-self-loops.  The
+    # FB6A/FB6A2D datasets additionally contain partial hubs (one leg removed
+    # upstream), which --allow-stub-edges repairs; see execution-plans/01_update_b.md.
     assert (
         main(
             [
                 "--input", str(REFERENCE.parent),
                 "--outdir", str(tmp_path),
                 "--allow-self-loops",
+                "--allow-stub-edges",
             ]
         )
         == 0

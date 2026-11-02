@@ -116,7 +116,9 @@ def test_update_a_key_sets() -> None:
     # the frozen payload/edge/node sets are untouched by the update
     assert len(PATHWAY_KEYS) == 16
     assert len(GRAPHML_EDGE_KEYS) == 14
-    assert len(GRAPHML_NODE_KEYS) == 9
+    # the Phase 04 "parameters used" node adds one node-role key (is_parameters)
+    assert len(GRAPHML_NODE_KEYS) == 10
+    assert GRAPHML_NODE_KEYS[-1] == "is_parameters"
 
 
 def test_valid_payload_conforms(payload: dict) -> None:

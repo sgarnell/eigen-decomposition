@@ -87,6 +87,13 @@ def assert_schema(payload: dict) -> None:
     assert isinstance(metadata["cent_distribution"], dict)
     assert all(isinstance(key, str) for key in metadata["cent_distribution"])
     assert isinstance(metadata["filters"], list)
+    assert isinstance(metadata["synthetic_edges"], list)
+    for entry in metadata["synthetic_edges"]:
+        assert set(entry) == {"hub", "missing_leg", "z_score", "color"}
+        assert isinstance(entry["hub"], str)
+        assert entry["missing_leg"] in ("pre", "post")
+        assert isinstance(entry["z_score"], float)
+        assert isinstance(entry["color"], str)
     assert isinstance(metadata["parser"], str)
     assert isinstance(metadata["parser_version"], str)
     assert RFC3339.match(metadata["created_utc"])
@@ -132,6 +139,7 @@ def test_metadata_keys_are_exact(payload: dict) -> None:
         "parser_version",
         "created_utc",
         "allow_self_loops",
+        "synthetic_edges",
     }
 
 

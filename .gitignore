@@ -42,8 +42,9 @@ dist/
 #  Data (optional)
 # ============================
 # Uncomment if you want to ignore large raw data
-# data/raw_dot/
-# data/processed/
+data/raw_dot/
+data/processed/
+outdir/
 
 # ============================
 #  PyCharm / JetBrains
