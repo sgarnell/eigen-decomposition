@@ -1165,6 +1165,133 @@ The read-only scorer is `src/clustering/motif_analysis.py`
 **No CSV files are produced by the pipeline.** The only CSV in the project is the optional
 `motif_analysis_summary.csv`, written exclusively when `--csv` is passed to the scorer.
 
+## Combined graph exporter (`combined_graph.py`)
+
+Joins a Phase 01 parsed graph (neuron nodes and directed pairs with `pre_z`/`post_z`)
+to ONE Phase 04 run and writes a single GraphML file in yEd's dialect: neuron nodes
+nested inside group (tile) nodes, group titles carrying the associated families
+(distinct-neuron counts; the home family in parentheses), pair edges keeping
+`pre_z`/`post_z`/`w` as data on a red (pre-dominance) to blue (post-dominance)
+gradient, and the pathway edges as a second layer — thick, dashed, gold. An optional
+resonator layer adds the reciprocal pairs scored S = G × E (G the geometric mean of
+the two |w|, E the geometric mean of the two input shares) as dotted green edges
+with arrows at both ends, labelled with S and carrying S/G/E as data. Self-loops are
+kept unless `--no-self-loops` is passed. `--dataset` is required: no dataset name is
+built into the tool.
+
+Run it from the repo root; every path resolves from the repo layout and can be
+overridden individually (`--parsed`, `--z-matrix`, `--motifs`, `--runs-dir`, ...).
+The GraphML is written beside the run as `combined.<hash>.graphml`.
+
+```bash
+# Combined graph for one run, with a PNG preview
+python combined_graph.py \
+  --dataset hDelta_ABH_FB_15pre_001_merged_data_v1 \
+  --config-hash 87ef7c02 --preview
+
+# Add the resonator-candidate layer (S >= 0.05)
+python combined_graph.py \
+  --dataset hDelta_ABH_FB_15pre_001_merged_data_v1 \
+  --config-hash 87ef7c02 --resonators --preview
+
+# A stricter candidate cut, no self-loops, explicit output path
+python combined_graph.py \
+  --dataset hDelta_ABH_FB_15pre_001_merged_data_v1 \
+  --config-hash 87ef7c02 --resonators --resonator-min-score 0.08 \
+  --no-self-loops --out outdir/combined_strict.graphml
+```
+
+### Transmitter grading
+
+With `--resonators`, pairs whose transmitters match the ACh↔Glu pattern are drawn
+brighter (`--resonator-color-strong`). The transmitter table resolves in this order,
+and the export succeeds in every case (no table → grading skipped, all candidates
+in the standard colour):
+
+1. An explicit option — at most one of `--transmitters-json '<json>'`,
+   `--transmitters <csv>`, or `--transmitters-neuprint`.
+2. A `transmitters.json` file beside the script (else in the working directory).
+3. neuPrint, when the `NEUPRINT_TOKEN` environment variable is set; a failed fetch
+   is a warning, never a failed run.
+
+The drop-in file is a flat neuron → transmitter object:
+
+```json
+{"FB5H": "dopamine", "FB5R": "glutamate", "FB5S": "glutamate", "FB5U": "glutamate",
+ "hDeltaH1": "acetylcholine", "hDeltaH2": "acetylcholine", "hDeltaH3": "acetylcholine",
+ "hDeltaH4": "acetylcholine", "hDeltaH7": "acetylcholine", "hDeltaH8": "acetylcholine"}
+```
+
+```bash
+# The same table inline, as a JSON string (object, or a list of
+# {"neuron": ..., "transmitter": ...} objects)
+python combined_graph.py \
+  --dataset hDelta_ABH_FB_15pre_001_merged_data_v1 \
+  --config-hash 87ef7c02 --resonators \
+  --transmitters-json '{"FB5R": "glutamate", "hDeltaH3": "acetylcholine"}'
+
+# Or fetched live from neuPrint for the run's own neurons (per-type call:
+# celltypePredictedNt, else the majority predictedNt; needs a neuPrint API
+# token in the environment)
+export NEUPRINT_TOKEN="paste-your-neuprint-token"
+python combined_graph.py \
+  --dataset hDelta_ABH_FB_15pre_001_merged_data_v1 \
+  --config-hash 87ef7c02 --resonators --transmitters-neuprint
+```
+
+## Flow animation (`animate_flow.py`)
+
+Turns an SVG graph into a standalone HTML page that animates the edges: points of
+light run along every edge from source to target, repeating, over the SVG inlined
+untouched as the static layer. The layout is whatever the SVG already has — the
+animator does no layout work, so it scales to any dataset the SVG renderer can
+produce. The page has its own camera, independent of the browser zoom: drag to pan,
+mouse-wheel / pinch / the + and − buttons to zoom, Fit to reset, and a Fullscreen
+button. Zooming rewrites the SVG viewBox, so the picture stays sharp at any zoom.
+
+Edges are classified from the SVG itself: group (pathway) edges by the gold stroke
+or a stroke-width ≥ 3; resonator edges by a green stroke, drawn with dots flowing in
+BOTH directions (they are reciprocal pairs); pair edges by a stroke-width < 2;
+anything else (group outlines) stays static. Controls: play/pause, a speed slider
+(9–270 SVG units/s, opening at 90), toggles for the pair, group and resonator layers
+and for dot trails. Pause, then hover a dot: a popup names its edge — source →
+target for a pair edge, the pathway weight for a group edge, the two neurons plus S
+(and the ACh–Glu grade, when present) for a resonator. A Legend button lists every
+gold and green edge as plain text with a Copy button, ready to paste into a paper
+or a slide.
+
+The SVG can come from a yEd export of the combined GraphML, or straight from the
+GraphML with the companion renderer `graphml_to_svg.py`, which rebuilds the
+exporter's own tile layout (boxes, chips, stored stroke colours and widths) from
+the GraphML geometry — useful when a yEd export predates an edge layer or has
+stripped the custom data. Note that a GraphML saved from yEd keeps layout and
+styles but drops the `pre_z`/`post_z`/`w` edge data; run analysis on the exporter's
+GraphML, and treat yEd files as view artifacts.
+
+```bash
+# Render an SVG from the exporter's GraphML (written beside it by default)
+python graphml_to_svg.py \
+  outdir/hDelta_ABH_FB_15pre_001_merged_data_v1/combined.87ef7c02.graphml
+````
+# Animate it (writes combined.87ef7c02.flow.html beside the SVG)
+```bash
+python animate_flow.py \
+  outdir/hDelta_ABH_FB_15pre_001_merged_data_v1/combined.87ef7c02.svg
+```
+```bash
+# Animate a yEd-exported SVG instead, with an explicit output name and title
+python animate_flow.py combined_from_yed.svg \
+  --out combined_yed.flow.html --title "combined graph (yEd layout) — flow"
+```
+# Slower dots, spaced further apart
+```bash
+python animate_flow.py \
+  outdir/hDelta_ABH_FB_15pre_001_merged_data_v1/combined.87ef7c02.svg \
+  --speed 45 --spacing 900
+```
+
+Open the `.flow.html` in any browser; no server or network is needed.
+
 ## License
 
 MIT License.
